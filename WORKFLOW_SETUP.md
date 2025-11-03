@@ -30,7 +30,34 @@
 
 ## セットアップ手順
 
-### 1. GitHub Secretsの設定
+### 方法1: 自動セットアップ（推奨）
+
+[setup-github-secrets.ps1](setup-github-secrets.ps1) スクリプトを使用して、必要なシークレットを自動的に作成・登録できます。
+
+```powershell
+.\setup-github-secrets.ps1 `
+    -SubscriptionId "12345678-1234-1234-1234-123456789012" `
+    -ResourceGroup "my-resource-group" `
+    -StaticWebAppName "my-static-web-app" `
+    -GitHubRepo "owner/repo"
+```
+
+このスクリプトは以下を自動的に実行します：
+1. Azure Service Principalの作成
+2. 必要な権限の付与
+3. GitHub Personal Access Tokenの取得（対話的）
+4. 4つのシークレット（AZURE_CREDENTIALS、GH_TOKEN、AZURE_STATIC_WEB_APP_NAME、AZURE_RESOURCE_GROUP）をGitHubリポジトリに登録
+
+**必要な前提条件：**
+- Azure CLI (az) のインストールと認証 (`az login`)
+- GitHub CLI (gh) のインストールと認証 (`gh auth login`)
+- Azureサブスクリプションの所有者または管理者ロール
+- GitHubリポジトリの管理者権限
+
+**オプション：**
+- GitHub Tokenを事前に作成済みの場合は `-GitHubToken` パラメーターで指定可能
+
+### 方法2: 手動セットアップ
 
 リポジトリの Settings > Secrets and variables > Actions から以下のシークレットを追加します：
 
