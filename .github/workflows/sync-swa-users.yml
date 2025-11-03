@@ -133,17 +133,18 @@ jobs:
           echo "Azure users: $azure_users"
 
           # 追加が必要なユーザー（GitHubにいてAzureにいない）
-          users_to_add=$(jq -n \
+          users_to_add=$(jq -n -c \
             --argjson gh "$github_users" \
             --argjson az "$azure_users" \
             '$gh - $az')
 
           # 削除が必要なユーザー（Azureにのみ存在）
-          users_to_remove=$(jq -n \
+          users_to_remove=$(jq -n -c \
             --argjson gh "$github_users" \
             --argjson az "$azure_users" \
             '$az - $gh')
 
+          # 1行のJSON文字列として出力
           echo "users_to_add=$users_to_add" >> $GITHUB_OUTPUT
           echo "users_to_remove=$users_to_remove" >> $GITHUB_OUTPUT
 
