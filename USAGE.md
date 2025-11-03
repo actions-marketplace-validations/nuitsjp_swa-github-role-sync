@@ -48,28 +48,97 @@ git clone https://github.com/nuitsjp/swa-github-auth-study.git
 cd swa-github-auth-study
 ```
 
+## 設定ファイルの作成
+
+スクリプトは共通設定ファイル `config.json` をサポートしています。これにより、毎回同じ引数を指定する必要がなくなります。
+
+### 1. テンプレートをコピー
+
+```bash
+cp config.json.template config.json
+```
+
+### 2. 設定値を編集
+
+`config.json` を開いて、以下の値を設定してください：
+
+```json
+{
+  "azure": {
+    "subscriptionId": "12345678-1234-1234-1234-123456789012",
+    "resourceGroup": "my-resource-group",
+    "staticWebAppName": "my-static-web-app"
+  },
+  "github": {
+    "repository": "owner/repo"
+  },
+  "servicePrincipal": {
+    "name": "GitHub-Actions-SWA-Sync"
+  },
+  "invitationSettings": {
+    "expiresInHours": 168
+  }
+}
+```
+
+### 設定項目の説明
+
+| 項目 | 説明 | 例 |
+|------|------|-----|
+| `azure.subscriptionId` | AzureサブスクリプションID | `12345678-1234-1234-1234-123456789012` |
+| `azure.resourceGroup` | Azureリソースグループ名 | `my-resource-group` |
+| `azure.staticWebAppName` | Azure Static Web App名 | `my-static-web-app` |
+| `github.repository` | GitHubリポジトリ（形式: owner/repo） | `nuitsjp/swa-github-auth-study` |
+| `servicePrincipal.name` | サービスプリンシパル名 | `GitHub-Actions-SWA-Sync` |
+| `invitationSettings.expiresInHours` | 招待の有効期限（時間） | `168`（7日間） |
+
+**注意**: `config.json` は `.gitignore` に含まれており、Gitにコミットされません。
+
 ## 使用方法
 
-### 基本的な使い方
+### 設定ファイルを使う方法（推奨）
+
+設定ファイル `config.json` を作成していれば、引数なしで実行できます：
 
 ```powershell
-.\sync-swa-users.ps1 -AppName "your-app-name" -ResourceGroup "your-resource-group" -GitHubRepo "owner/repo"
+.\scripts\sync-swa-users.ps1
+```
+
+特定の設定ファイルを指定する場合：
+
+```powershell
+.\scripts\sync-swa-users.ps1 -ConfigPath "custom-config.json"
+```
+
+設定ファイルの値をコマンドライン引数で上書きする場合：
+
+```powershell
+.\scripts\sync-swa-users.ps1 -AppName "another-app"
+```
+
+### 基本的な使い方（設定ファイルなし）
+
+```powershell
+.\scripts\sync-swa-users.ps1 -AppName "your-app-name" -ResourceGroup "your-resource-group" -GitHubRepo "owner/repo"
 ```
 
 ### ドライランモード（変更を適用せずに確認）
 
 ```powershell
-.\sync-swa-users.ps1 -AppName "your-app-name" -ResourceGroup "your-resource-group" -GitHubRepo "owner/repo" -DryRun
+.\scripts\sync-swa-users.ps1 -DryRun
 ```
 
 ### パラメータ
 
 | パラメータ | 必須 | 説明 | 例 |
 |-----------|------|------|-----|
-| `AppName` | ○ | Azure Static Web App名 | `my-static-web-app` |
-| `ResourceGroup` | ○ | Azureリソースグループ名 | `my-resource-group` |
-| `GitHubRepo` | ○ | GitHubリポジトリ（形式: owner/repo） | `nuitsjp/swa-github-auth-study` |
+| `AppName` | △ | Azure Static Web App名（設定ファイルから読み込み可能） | `my-static-web-app` |
+| `ResourceGroup` | △ | Azureリソースグループ名（設定ファイルから読み込み可能） | `my-resource-group` |
+| `GitHubRepo` | △ | GitHubリポジトリ（形式: owner/repo）（設定ファイルから読み込み可能） | `nuitsjp/swa-github-auth-study` |
+| `ConfigPath` | × | 設定ファイルのパス（デフォルト: `config.json`） | `custom-config.json` |
 | `DryRun` | × | 変更を適用せずに実行結果をプレビュー | （スイッチパラメータ） |
+
+**注意**: △ = `config.json` が存在すればオプション、そうでなければ必須
 
 ## 実行例
 

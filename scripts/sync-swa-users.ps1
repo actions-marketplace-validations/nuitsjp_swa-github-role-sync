@@ -36,14 +36,17 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [string]$AppName,
     
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [string]$ResourceGroup,
     
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [string]$GitHubRepo,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$ConfigPath = "config.json",
     
     [Parameter(Mandatory=$false)]
     [switch]$DryRun
@@ -52,46 +55,9 @@ param(
 # エラー発生時に停止
 $ErrorActionPreference = "Stop"
 
-# ログ関数
-function Write-Log {
-    param(
-        [string]$Message,
-        [ValidateSet("INFO", "SUCCESS", "WARNING", "ERROR")]
-        [string]$Level = "INFO"
-    )
-    
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $color = switch ($Level) {
-        "INFO"    { "White" }
-        "SUCCESS" { "Green" }
-        "WARNING" { "Yellow" }
-        "ERROR"   { "Red" }
-    }
-    
-    Write-Host "[$timestamp] [$Level] $Message" -ForegroundColor $color
-}
-
-# Azure CLIの存在確認
-function Test-AzureCLI {
-    try {
-        $null = az --version 2>&1
-        return $true
-    }
-    catch {
-        return $false
-    }
-}
-
-# GitHub CLIの存在確認
-function Test-GitHubCLI {
-    try {
-        $null = gh --version 2>&1
-        return $true
-    }
-    catch {
-        return $false
-    }
-}
+# 共通関数を読み込む
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $scriptDir "common-functions.ps1")
 
 # GitHubリポジトリのコラボレーター取得（push権限以上）
 function Get-GitHubCollaborators {
@@ -283,6 +249,19 @@ function Remove-AzureStaticWebAppUser {
 
 # メイン処理
 try {
+    # 設定ファイルを読み込む
+    $overrides = @{}
+    if ($AppName) { $overrides.StaticWebAppName = $AppName }
+    if ($ResourceGroup) { $overrides.ResourceGroup = $ResourceGroup }
+    if ($GitHubRepo) { $overrides.GitHubRepo = $GitHubRepo }
+    
+    $config = Get-Configuration -ConfigPath $ConfigPath -Overrides $overrides
+    
+    # 設定から値を取得
+    $AppName = $config.Azure.StaticWebAppName
+    $ResourceGroup = $config.Azure.ResourceGroup
+    $GitHubRepo = $config.GitHub.Repository
+    
     Write-Log "========================================" -Level INFO
     Write-Log "Azure Static Web App ユーザー同期スクリプト" -Level INFO
     Write-Log "========================================" -Level INFO
@@ -295,37 +274,9 @@ try {
     Write-Log "========================================" -Level INFO
     
     # 前提条件の確認
-    Write-Log "前提条件を確認中..." -Level INFO
-    
-    if (-not (Test-AzureCLI)) {
-        Write-Log "Azure CLI (az) がインストールされていません" -Level ERROR
-        Write-Log "https://docs.microsoft.com/cli/azure/install-azure-cli からインストールしてください" -Level ERROR
+    if (-not (Test-Prerequisites)) {
         exit 1
     }
-    Write-Log "Azure CLI: OK" -Level SUCCESS
-    
-    if (-not (Test-GitHubCLI)) {
-        Write-Log "GitHub CLI (gh) がインストールされていません" -Level ERROR
-        Write-Log "https://cli.github.com/ からインストールしてください" -Level ERROR
-        exit 1
-    }
-    Write-Log "GitHub CLI: OK" -Level SUCCESS
-    
-    # Azure認証状態の確認
-    $azAccount = az account show 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "Azureにログインしていません。'az login' を実行してください" -Level ERROR
-        exit 1
-    }
-    Write-Log "Azure認証: OK" -Level SUCCESS
-    
-    # GitHub認証状態の確認
-    $ghAuth = gh auth status 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Log "GitHubにログインしていません。'gh auth login' を実行してください" -Level ERROR
-        exit 1
-    }
-    Write-Log "GitHub認証: OK" -Level SUCCESS
     
     Write-Log "========================================" -Level INFO
     

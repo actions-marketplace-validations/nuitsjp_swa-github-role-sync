@@ -1,0 +1,16 @@
+{
+  "azure": {
+    "subscriptionId": "your-subscription-id",
+    "resourceGroup": "your-resource-group",
+    "staticWebAppName": "your-static-web-app-name"
+  },
+  "github": {
+    "repository": "owner/repo"
+  },
+  "servicePrincipal": {
+    "name": "GitHub-Actions-SWA-Sync"
+  },
+  "invitationSettings": {
+    "expiresInHours": 168
+  }
+}

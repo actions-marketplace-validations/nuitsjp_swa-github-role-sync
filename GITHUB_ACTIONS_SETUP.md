@@ -44,7 +44,7 @@ jobs:
       # ユーザー同期スクリプトを実行
       - name: Sync Users
         run: |
-          .\sync-swa-users.ps1 `
+          .\scripts\sync-swa-users.ps1 `
             -AppName "${{ secrets.SWA_APP_NAME }}" `
             -ResourceGroup "${{ secrets.SWA_RESOURCE_GROUP }}" `
             -GitHubRepo "${{ github.repository }}"
@@ -58,6 +58,21 @@ jobs:
           # ここに通知処理を追加（例: Slackへの通知など）
         shell: pwsh
 ```
+
+### 設定ファイルを使用する場合（推奨）
+
+リポジトリに `config.json` を配置しておくことで、シークレットの数を減らすことができます：
+
+```yaml
+      # ユーザー同期スクリプトを実行（設定ファイル使用）
+      - name: Sync Users
+        run: |
+          .\scripts\sync-swa-users.ps1
+        shell: pwsh
+```
+
+**注意**: この方法を使う場合、`config.json` をリポジトリにコミットする必要があります。
+機密情報は含まれないため、パブリックリポジトリでも安全です。
 
 ## 必要なGitHub Secretsの設定
 
