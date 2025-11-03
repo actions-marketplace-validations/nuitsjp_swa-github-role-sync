@@ -67,6 +67,9 @@
 
 #### 必須シークレット
 
+> **注意**: `GH_TOKEN` は通常は不要です。ワークフローは自動的に `GITHUB_TOKEN` を使用します。
+> コラボレーター取得時に権限エラーが発生する場合のみ、カスタムトークンを設定してください。
+
 - **`AZURE_CREDENTIALS`**
   ```json
   {
@@ -85,16 +88,16 @@
     --sdk-auth
   ```
 
-- **`GH_TOKEN`**
+- **`GH_TOKEN`**（オプション）
   - GitHub Personal Access Token（classic または fine-grained）
+  - **通常は不要**: ワークフローは自動的に `GITHUB_TOKEN` を使用します
+  - **設定が必要なケース**: プライベートリポジトリでコラボレーター情報の取得に失敗する場合
   - **必要なスコープ（classic token）**：
     - ✅ `repo` (Full control of private repositories)
-    - ✅ `workflow` (Update GitHub Action workflows) - **必須！**
   - **必要な権限（fine-grained token）**：
     - Repository access: 対象リポジトリを選択
     - Permissions:
-      - Actions: Read and write
-      - Secrets: Read and write - **必須！**
+      - Contents: Read-only
       - Metadata: Read-only
   - 作成方法：
     - Classic: Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token

@@ -58,9 +58,17 @@ jobs:
 
       - name: Authenticate GitHub CLI
         run: |
-          echo "${{ secrets.GH_TOKEN }}" | gh auth login --with-token
+          # GH_TOKENシークレットがあればそれを使用、なければGITHUB_TOKENを使用
+          if [ -n "${{ secrets.GH_TOKEN }}" ]; then
+            echo "Using GH_TOKEN secret"
+            echo "${{ secrets.GH_TOKEN }}" | gh auth login --with-token
+          else
+            echo "Using GITHUB_TOKEN (automatic)"
+            echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          fi
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set parameters
         id: params

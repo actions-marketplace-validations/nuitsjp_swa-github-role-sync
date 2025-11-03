@@ -3,8 +3,12 @@
     GitHub ActionsワークフローのためのシークレットをAzureリソースから作成・登録するスクリプト
 
 .DESCRIPTION
-    Azure Service Principalを作成し、必要なシークレット（AZURE_CREDENTIALS、GH_TOKEN）を
-    GitHubリポジトリに自動的に登録します。
+    Azure Service Principalを作成し、必要なシークレット（AZURE_CREDENTIALS、AZURE_STATIC_WEB_APP_NAME、
+    AZURE_RESOURCE_GROUP、GH_TOKEN）をGitHubリポジトリに自動的に登録します。
+
+    注意: このスクリプトを実行するには、GitHub Personal Access Tokenに以下の権限が必要です：
+    - Classic token: 'repo' と 'workflow' スコープ
+    - Fine-grained token: Actions と Secrets の Read/Write 権限
 
 .PARAMETER SubscriptionId
     AzureサブスクリプションID
@@ -211,8 +215,12 @@ function Get-GitHubToken {
     Write-Log "以下の手順でトークンを作成してください:" -Level INFO
     Write-Log "1. https://github.com/settings/tokens にアクセス" -Level INFO
     Write-Log "2. 'Generate new token (classic)' をクリック" -Level INFO
-    Write-Log "3. 'repo' スコープを選択" -Level INFO
+    Write-Log "3. 必須スコープを選択:" -Level INFO
+    Write-Log "   - 'repo' (Full control of private repositories)" -Level INFO
+    Write-Log "   - 'workflow' (Update GitHub Action workflows) ← 重要！" -Level INFO
     Write-Log "4. トークンを生成してコピー" -Level INFO
+    Write-Log "" -Level INFO
+    Write-Log "注意: 'workflow' スコープがないとActions secretsを設定できません" -Level WARNING
     Write-Log "" -Level INFO
 
     $token = Read-Host "GitHub Personal Access Tokenを入力してください" -AsSecureString
