@@ -89,15 +89,15 @@
 
 > **注意**: ワークフローは自動的に `GITHUB_TOKEN` を使用するため、`GH_TOKEN` シークレットは不要です。
 
-#### スケジュール実行用のシークレット（オプション）
-
-日次スケジュール実行を使用する場合は以下も設定してください：
-
 - **`AZURE_STATIC_WEB_APP_NAME`**
   - Azure Static Web App名
+  - ワークフロー実行時に使用される対象アプリ
 
 - **`AZURE_RESOURCE_GROUP`**
   - Azureリソースグループ名
+  - ワークフロー実行時に使用される対象リソースグループ
+
+> **注意**: これらのシークレットは必須です。ワークフローは常にこれらの値を使用します。
 
 ### 2. Azure Service Principalの権限設定
 
@@ -111,10 +111,6 @@ az role assignment create \
   --scope /subscriptions/{subscription-id}/resourceGroups/{resource-group}
 ```
 
-### 3. GitHub CLI認証の確認
-
-ワークフローはGitHub CLIを使用してコラボレーター情報を取得します。`GH_TOKEN`シークレットが正しく設定されていることを確認してください。
-
 ## 使用方法
 
 ### 手動実行
@@ -122,12 +118,11 @@ az role assignment create \
 1. GitHubリポジトリの「Actions」タブを開く
 2. 「Sync Azure Static Web App Users」ワークフローを選択
 3. 「Run workflow」ボタンをクリック
-4. 以下のパラメータを入力：
-   - **Azure Static Web App名**: 対象のStatic Web App名
-   - **Azureリソースグループ名**: リソースグループ名
-   - **GitHubリポジトリ**: `owner/repo` 形式（例：`microsoft/vscode`）
+4. オプション：
    - **ドライラン**: 変更を適用せずに確認する場合はチェック
 5. 「Run workflow」をクリックして実行
+
+**注意**: Azure Static Web App名、リソースグループ名、GitHubリポジトリはシークレットから自動取得されます。
 
 ### スケジュール実行
 

@@ -4,18 +4,6 @@ on:
   # 手動トリガー
   workflow_dispatch:
     inputs:
-      app_name:
-        description: 'Azure Static Web App名'
-        required: true
-        type: string
-      resource_group:
-        description: 'Azureリソースグループ名'
-        required: true
-        type: string
-      github_repo:
-        description: 'GitHubリポジトリ (形式: owner/repo)'
-        required: true
-        type: string
       dry_run:
         description: 'ドライラン（変更を適用しない）'
         required: false
@@ -25,12 +13,6 @@ on:
   # 日次スケジュール実行（UTC 00:00 = JST 09:00）
   schedule:
     - cron: '0 0 * * *'
-
-env:
-  # スケジュール実行時のデフォルト値（環境に応じて設定）
-  DEFAULT_APP_NAME: ${{ secrets.AZURE_STATIC_WEB_APP_NAME }}
-  DEFAULT_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-  DEFAULT_GITHUB_REPO: ${{ github.repository }}
 
 jobs:
   sync-users:
@@ -65,15 +47,15 @@ jobs:
       - name: Set parameters
         id: params
         run: |
+          # シークレットから設定を取得
+          echo "app_name=${{ secrets.AZURE_STATIC_WEB_APP_NAME }}" >> $GITHUB_OUTPUT
+          echo "resource_group=${{ secrets.AZURE_RESOURCE_GROUP }}" >> $GITHUB_OUTPUT
+          echo "github_repo=${{ github.repository }}" >> $GITHUB_OUTPUT
+
+          # dry_runは手動実行時のみ指定可能
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "app_name=${{ github.event.inputs.app_name }}" >> $GITHUB_OUTPUT
-            echo "resource_group=${{ github.event.inputs.resource_group }}" >> $GITHUB_OUTPUT
-            echo "github_repo=${{ github.event.inputs.github_repo }}" >> $GITHUB_OUTPUT
             echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
           else
-            echo "app_name=${{ env.DEFAULT_APP_NAME }}" >> $GITHUB_OUTPUT
-            echo "resource_group=${{ env.DEFAULT_RESOURCE_GROUP }}" >> $GITHUB_OUTPUT
-            echo "github_repo=${{ env.DEFAULT_GITHUB_REPO }}" >> $GITHUB_OUTPUT
             echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
