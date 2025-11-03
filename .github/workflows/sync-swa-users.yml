@@ -3,12 +3,6 @@ name: Sync Azure Static Web App Users
 on:
   # 手動トリガー
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'ドライラン（変更を適用しない）'
-        required: false
-        type: boolean
-        default: false
 
   # 日次スケジュール実行（UTC 00:00 = JST 09:00）
   schedule:
