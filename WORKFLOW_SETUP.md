@@ -54,6 +54,10 @@
 - Azureサブスクリプションの所有者または管理者ロール
 - GitHubリポジトリの管理者権限
 
+**GitHub Personal Access Token の要件：**
+- **Classic token の場合**：`repo` と `workflow` スコープが必須
+- **Fine-grained token の場合**：Actions と Secrets の Read/Write 権限が必須
+
 **オプション：**
 - GitHub Tokenを事前に作成済みの場合は `-GitHubToken` パラメーターで指定可能
 
@@ -82,9 +86,19 @@
   ```
 
 - **`GH_TOKEN`**
-  - GitHub Personal Access Token（classic）
-  - 必要なスコープ：`repo` (フルアクセス)
-  - 作成方法：Settings > Developer settings > Personal access tokens > Generate new token
+  - GitHub Personal Access Token（classic または fine-grained）
+  - **必要なスコープ（classic token）**：
+    - ✅ `repo` (Full control of private repositories)
+    - ✅ `workflow` (Update GitHub Action workflows) - **必須！**
+  - **必要な権限（fine-grained token）**：
+    - Repository access: 対象リポジトリを選択
+    - Permissions:
+      - Actions: Read and write
+      - Secrets: Read and write - **必須！**
+      - Metadata: Read-only
+  - 作成方法：
+    - Classic: Settings > Developer settings > Personal access tokens > Tokens (classic) > Generate new token
+    - Fine-grained: Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token
 
 #### スケジュール実行用のシークレット（オプション）
 

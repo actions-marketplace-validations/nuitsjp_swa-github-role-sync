@@ -274,15 +274,31 @@ function Set-GitHubSecret {
         # 一時的に環境変数を設定
         $env:GH_TOKEN = $Token
 
-        # シークレットを設定
-        $SecretValue | gh secret set $SecretName --repo $Repo 2>&1 | Out-Null
+        # stderrを別ファイルにリダイレクトして詳細なエラー情報を取得
+        $tempErrorFile = [System.IO.Path]::GetTempFileName()
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "シークレットの設定に失敗しました"
+        try {
+            # シークレットを設定
+            $SecretValue | gh secret set $SecretName --repo $Repo 2>$tempErrorFile | Out-Null
+
+            if ($LASTEXITCODE -ne 0) {
+                $errorContent = Get-Content $tempErrorFile -Raw -ErrorAction SilentlyContinue
+                if ($errorContent -and $errorContent.Trim()) {
+                    throw "シークレットの設定に失敗しました: $errorContent"
+                } else {
+                    throw "シークレットの設定に失敗しました (終了コード: $LASTEXITCODE)"
+                }
+            }
+
+            Write-Log "シークレットの設定に成功しました: $SecretName" -Level SUCCESS
+            return $true
         }
-
-        Write-Log "シークレットの設定に成功しました: $SecretName" -Level SUCCESS
-        return $true
+        finally {
+            # 一時ファイルを削除
+            if (Test-Path $tempErrorFile) {
+                Remove-Item $tempErrorFile -Force -ErrorAction SilentlyContinue
+            }
+        }
     }
     catch {
         Write-Log "シークレットの設定に失敗しました: $SecretName - $_" -Level ERROR
