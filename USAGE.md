@@ -74,6 +74,12 @@ cp config.json.template config.json
   },
   "invitationSettings": {
     "expiresInHours": 168
+  },
+  "discussion": {
+    "enabled": true,
+    "categoryId": "DIC_kwDOxxxxxx",
+    "title": "Azure Static Web App への招待: {username}",
+    "bodyTemplate": "invitation-body-template.txt"
   }
 }
 ```
@@ -87,12 +93,126 @@ cp config.json.template config.json
 | `azure.staticWebAppName` | Azure Static Web App名 | `my-static-web-app` |
 | `servicePrincipal.name` | サービスプリンシパル名 | `GitHub-Actions-SWA-Sync` |
 | `invitationSettings.expiresInHours` | 招待の有効期限（時間） | `168`（7日間） |
+| `discussion.enabled` | Discussion投稿を有効にするか | `true` または `false` |
+| `discussion.categoryId` | DiscussionカテゴリのID（後述の取得方法を参照） | `DIC_kwDOxxxxxx` |
+| `discussion.title` | Discussionタイトルテンプレート（`{username}`がユーザー名に置換される） | `Azure Static Web App への招待: {username}` |
+| `discussion.bodyTemplate` | 本文テンプレートファイルのパス | `invitation-body-template.txt` |
 
 GitHubリポジトリは現在のGitリポジトリの`origin`リモートから自動的に検出されます。
 実行前に `git remote get-url origin` を実行し、想定しているGitHubリポジトリを指していることを確認してください。
 `origin`が見つからない、またはGitHubを指していない場合はエラーになります。
 
 **注意**: `config.json` は `.gitignore` に含まれており、Gitにコミットされません。
+
+### DiscussionカテゴリIDの取得方法
+
+GitHub DiscussionsにユーザーInvitation通知を投稿する場合、対象リポジトリのDiscussionカテゴリIDが必要です。
+
+**手順:**
+
+1. リポジトリでDiscussionsが有効になっていることを確認
+2. 以下のコマンドでカテゴリIDを取得（`owner/repo`を実際のリポジトリ名に置き換え）:
+
+```bash
+gh api graphql -f query='
+{
+  repository(owner: "owner", name: "repo") {
+    discussionCategories(first: 10) {
+      nodes {
+        id
+        name
+        description
+      }
+    }
+  }
+}'
+```
+
+3. 出力から希望するカテゴリの`id`（例: `DIC_kwDOxxxxxx`）をコピー
+4. `config.json`の`discussion.categoryId`に設定
+
+**例:**
+
+```json
+{
+  "data": {
+    "repository": {
+      "discussionCategories": {
+        "nodes": [
+          {
+            "id": "DIC_kwDOxxxxxx",
+            "name": "General",
+            "description": "Chat about anything and everything here"
+          },
+          {
+            "id": "DIC_kwDOyyyyyy",
+            "name": "Announcements",
+            "description": "Updates from maintainers"
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+この例では `DIC_kwDOxxxxxx` または `DIC_kwDOyyyyyy` のいずれかを使用できます。
+
+### メッセージテンプレートのカスタマイズ
+
+招待通知の本文は、テキストファイルで自由にカスタマイズできます。タイトルは設定ファイル内でテンプレート文字列として定義します。
+
+**デフォルトのテンプレートファイル:**
+
+- `invitation-body-template.txt`: Discussionの本文
+
+**本文テンプレートで使用可能なプレースホルダー:**
+
+- `{{USERNAME}}`: 招待されたユーザー名
+- `{{INVITATION_URL}}`: 招待リンクURL
+
+**タイトルテンプレートで使用可能なプレースホルダー:**
+
+- `{username}`: 招待されたユーザー名（設定ファイルの`discussion.title`内で使用）
+
+**カスタマイズ例:**
+
+`config.json`:
+```json
+{
+  "discussion": {
+    "enabled": true,
+    "categoryId": "DIC_kwDOxxxxxx",
+    "title": "[重要] @{username} さんへの招待通知",
+    "bodyTemplate": "invitation-body-template.txt"
+  }
+}
+```
+
+`invitation-body-template.txt`:
+```markdown
+## Azure Static Web App アクセス権限が付与されました
+
+こんにちは、**{{USERNAME}}** さん！
+
+以下の招待リンクにアクセスして認証を完了してください。
+
+### 招待リンク
+
+{{INVITATION_URL}}
+
+### 注意事項
+
+- 招待リンクの有効期限は**7日間**です
+- 期限内にアクセスして GitHub 認証を完了してください
+- 認証後、Static Web App の全機能にアクセス可能になります
+
+### サポート
+
+問題がある場合は、リポジトリの Issues でお知らせください。
+```
+
+**重要:** 招待されたユーザーごとに個別のDiscussionが作成されます。複数ユーザーを招待した場合、それぞれに専用のDiscussionスレッドが立ちます。
 
 ## 使用方法
 

@@ -9,5 +9,11 @@
   },
   "invitationSettings": {
     "expiresInHours": 168
+  },
+  "discussion": {
+    "enabled": true,
+    "categoryId": "your-discussion-category-id",
+    "title": "Azure Static Web App への招待: {username}",
+    "bodyTemplate": "invitation-body-template.txt"
   }
 }

@@ -32,7 +32,20 @@ function Get-Configuration {
         [hashtable]$Overrides = @{}
     )
     
-    $configFile = Join-Path $PSScriptRoot $ConfigPath
+    # 相対パスの場合は、呼び出し元のスクリプトのディレクトリまたはカレントディレクトリからの相対パスとして解決
+    if (-not [System.IO.Path]::IsPathRooted($ConfigPath)) {
+        # まず、PSScriptRootの親ディレクトリ（リポジトリルート）から探す
+        $rootPath = Split-Path -Parent $PSScriptRoot
+        $configFile = Join-Path $rootPath $ConfigPath
+        
+        # 見つからない場合は、カレントディレクトリから探す
+        if (-not (Test-Path $configFile)) {
+            $configFile = Join-Path (Get-Location).Path $ConfigPath
+        }
+    }
+    else {
+        $configFile = $ConfigPath
+    }
     
     # 設定ファイルが存在しない場合
     if (-not (Test-Path $configFile)) {
@@ -81,6 +94,12 @@ function Get-Configuration {
             }
             InvitationSettings = @{
                 ExpiresInHours = $config.invitationSettings.expiresInHours
+            }
+            Discussion = @{
+                Enabled = if ($config.PSObject.Properties.Name -contains "discussion") { $config.discussion.enabled } else { $false }
+                CategoryId = if ($config.PSObject.Properties.Name -contains "discussion") { $config.discussion.categoryId } else { "" }
+                Title = if ($config.PSObject.Properties.Name -contains "discussion") { $config.discussion.title } else { "Azure Static Web App への招待: {username}" }
+                BodyTemplate = if ($config.PSObject.Properties.Name -contains "discussion") { $config.discussion.bodyTemplate } else { "" }
             }
         }
         
@@ -217,4 +236,68 @@ function Test-Prerequisites {
     }
     
     return $true
+}
+
+# テンプレートファイルを読み込む
+function Get-TemplateContent {
+    param(
+        [string]$TemplatePath
+    )
+    
+    if (-not (Test-Path $TemplatePath)) {
+        Write-Log "テンプレートファイルが見つかりません: $TemplatePath" -Level ERROR
+        throw "テンプレートファイルが見つかりません: $TemplatePath"
+    }
+    
+    try {
+        $content = Get-Content $TemplatePath -Raw -Encoding UTF8
+        return $content
+    }
+    catch {
+        Write-Log "テンプレートファイルの読み込みに失敗しました: $_" -Level ERROR
+        throw
+    }
+}
+
+# GitHub Discussionを作成
+function New-GitHubDiscussion {
+    param(
+        [string]$Repo,
+        [string]$CategoryId,
+        [string]$Title,
+        [string]$Body
+    )
+    
+    Write-Log "GitHub Discussionを作成中: $Repo" -Level INFO
+    
+    try {
+        # まずリポジトリIDを取得
+        $repoInfo = gh api "repos/$Repo" --jq '{id: .node_id}' 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "リポジトリ情報の取得に失敗しました: $repoInfo"
+        }
+        
+        $repoObj = $repoInfo | ConvertFrom-Json
+        $repoId = $repoObj.id
+        
+        # GitHub CLI GraphQL APIを使用してDiscussionを作成
+        # -F オプションを使用して変数を直接渡す
+        $mutation = 'mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) { createDiscussion(input: { repositoryId: $repositoryId, categoryId: $categoryId, title: $title, body: $body }) { discussion { url } } }'
+        
+        # Discussionを作成
+        $result = gh api graphql -f query="$mutation" -F repositoryId="$repoId" -F categoryId="$CategoryId" -F title="$Title" -F body="$Body" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Discussion作成に失敗しました: $result"
+        }
+        
+        $discussionObj = $result | ConvertFrom-Json
+        $discussionUrl = $discussionObj.data.createDiscussion.discussion.url
+        
+        Write-Log "Discussionを作成しました: $discussionUrl" -Level SUCCESS
+        return $discussionUrl
+    }
+    catch {
+        Write-Log "Discussion作成中にエラーが発生しました: $_" -Level ERROR
+        throw
+    }
 }

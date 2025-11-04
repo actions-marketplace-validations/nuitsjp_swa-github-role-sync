@@ -11,6 +11,7 @@ Azure Static Web AppとGitHub Repositoryユーザーの同期サンプル
 - GitHubリポジトリのコラボレーター（push権限以上）を自動検出
 - Azure Static Web Appの認証済みユーザーと同期
 - 新規ユーザーの自動招待と権限を失ったユーザーの自動削除
+- **招待リンクをGitHub Discussionsに自動投稿**
 - ドライランモードでの事前確認機能
 - 詳細なログ出力とエラーハンドリング
 - Gitの`origin`リモートから対象GitHubリポジトリを自動判定
@@ -57,6 +58,7 @@ GitHubリポジトリは現在のGitリポジトリの`origin`リモートから
 
 - ✅ GitHubリポジトリのpush権限を持つユーザーを自動検出
 - ✅ Azure Static Web Appと自動同期
+- ✅ 招待リンクをGitHub Discussionsに自動投稿（オプション）
 - ✅ ドライランモードで安全に事前確認
 - ✅ 詳細なログとエラーハンドリング
 - ✅ API呼び出しの自動リトライ機能

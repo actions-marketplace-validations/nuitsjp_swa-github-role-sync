@@ -109,12 +109,14 @@ az ad sp create-for-rbac --name "github-actions-swa-sync" --role contributor \
 GitHub Personal Access Token
 
 **必要なスコープ:**
-- `repo` (フルアクセス)
+- `repo` (フルアクセス) - リポジトリのコラボレーター取得とDiscussions投稿に必要
+
+**注意:** GitHub Discussions への投稿機能を有効にする場合、`repo` スコープが必須です。このスコープにはDiscussionsの読み書き権限が含まれています。
 
 **作成方法:**
 1. GitHub の Settings > Developer settings > Personal access tokens > Tokens (classic)
 2. "Generate new token (classic)" をクリック
-3. `repo` スコープをチェック
+3. `repo` スコープをチェック（これでDiscussionsへの書き込みも可能になります）
 4. トークンを生成してコピー
 5. GitHub Secretsに設定
 

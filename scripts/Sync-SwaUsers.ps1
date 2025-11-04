@@ -191,20 +191,48 @@ function Add-AzureStaticWebAppUser {
             --domain $domain `
             --role github_collaborator `
             --invitation-expiration-in-hours $InvitationExpiresInHours `
+            --output json `
             2>&1
         
         if ($LASTEXITCODE -eq 0) {
             Write-Log "ユーザーの招待に成功しました: $UserName" -Level SUCCESS
-            return $true
+            
+            # JSON応答から招待URLを抽出
+            try {
+                $invitationObj = $result | ConvertFrom-Json
+                $invitationUrl = $invitationObj.invitationUrl
+                
+                return @{
+                    Success = $true
+                    UserName = $UserName
+                    InvitationUrl = $invitationUrl
+                }
+            }
+            catch {
+                Write-Log "招待URLの抽出に失敗しました: $_" -Level WARNING
+                return @{
+                    Success = $true
+                    UserName = $UserName
+                    InvitationUrl = $null
+                }
+            }
         }
         else {
             Write-Log "ユーザーの招待に失敗しました: $UserName - $result" -Level ERROR
-            return $false
+            return @{
+                Success = $false
+                UserName = $UserName
+                InvitationUrl = $null
+            }
         }
     }
     catch {
         Write-Log "ユーザーの招待中にエラーが発生しました: $UserName - $_" -Level ERROR
-        return $false
+        return @{
+            Success = $false
+            UserName = $UserName
+            InvitationUrl = $null
+        }
     }
 }
 
@@ -314,13 +342,18 @@ try {
     # 4. ユーザー同期
     $successCount = 0
     $failureCount = 0
+    $invitations = @()
     
     # 新規ユーザーを追加
     if ($usersToAdd.Count -gt 0) {
         Write-Log "ユーザーを追加中..." -Level INFO
         foreach ($user in $usersToAdd) {
-            if (Add-AzureStaticWebAppUser -AppName $AppName -ResourceGroup $ResourceGroup -UserName $user) {
+            $result = Add-AzureStaticWebAppUser -AppName $AppName -ResourceGroup $ResourceGroup -UserName $user
+            if ($result.Success) {
                 $successCount++
+                if ($result.InvitationUrl) {
+                    $invitations += $result
+                }
             }
             else {
                 $failureCount++
@@ -347,6 +380,58 @@ try {
     Write-Log "成功: $successCount 件" -Level SUCCESS
     Write-Log "失敗: $failureCount 件" -Level $(if ($failureCount -gt 0) { "ERROR" } else { "INFO" })
     Write-Log "========================================" -Level INFO
+    
+    # 5. GitHub Discussionに招待リンクを投稿
+    if ($invitations.Count -gt 0 -and $config.Discussion.Enabled) {
+        Write-Log "========================================" -Level INFO
+        Write-Log "GitHub Discussionに招待リンクを投稿中..." -Level INFO
+        
+        try {
+            # テンプレートファイルを読み込む
+            $bodyTemplate = Get-TemplateContent -TemplatePath (Join-Path $PSScriptRoot ".." $config.Discussion.BodyTemplate)
+            
+            # 各ユーザーごとに個別のDiscussionを作成
+            $successCount = 0
+            $failCount = 0
+            
+            foreach ($invitation in $invitations) {
+                try {
+                    # タイトルのプレースホルダーを置換
+                    $title = $config.Discussion.Title -replace "\{username\}", $invitation.UserName
+                    
+                    # 本文のプレースホルダーを置換
+                    $body = $bodyTemplate -replace "\{\{USERNAME\}\}", $invitation.UserName
+                    $body = $body -replace "\{\{INVITATION_URL\}\}", $invitation.InvitationUrl
+                    
+                    # Discussionを作成
+                    $discussionUrl = New-GitHubDiscussion `
+                        -Repo $GitHubRepo `
+                        -CategoryId $config.Discussion.CategoryId `
+                        -Title $title `
+                        -Body $body
+                    
+                    Write-Log "Discussionを投稿しました: $($invitation.UserName) -> $discussionUrl" -Level SUCCESS
+                    $successCount++
+                }
+                catch {
+                    Write-Log "Discussion投稿に失敗しました（$($invitation.UserName)）: $_" -Level ERROR
+                    $failCount++
+                }
+            }
+            
+            Write-Log "Discussion投稿完了: 成功 $successCount 件、失敗 $failCount 件" -Level INFO
+            
+            if ($failCount -gt 0) {
+                Write-Log "一部のDiscussion投稿に失敗しましたが、招待は完了しています" -Level WARNING
+            }
+        }
+        catch {
+            Write-Log "Discussion投稿処理に失敗しました: $_" -Level ERROR
+            Write-Log "招待は完了していますが、リンクの通知ができませんでした" -Level WARNING
+        }
+        
+        Write-Log "========================================" -Level INFO
+    }
     
     if ($failureCount -gt 0) {
         exit 1

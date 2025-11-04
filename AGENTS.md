@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Primary Directive
+
+- Think in English, interact with the user in Japanese.
+
 ## Project Structure & Module Organization
 - `sync-swa-users.ps1` holds the user sync workflow, covering CLI validation, collaborator retrieval, and Azure updates.
 - `.github/workflows/azure-static-web-apps-calm-hill-0f33a0910.yml` runs scheduled and manual sync jobs.
