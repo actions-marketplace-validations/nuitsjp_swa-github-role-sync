@@ -488,6 +488,21 @@ gh auth login
 
 **解決方法**: Azureで対象のStatic Web Appに対して「共同作成者」ロール以上が付与されていることを確認してください。
 
+### Azureユーザー数が0と表示される（ポータルではユーザーが存在する）
+
+- Azure CLI 2.75 以降では、`az staticwebapp users list` の `roles` プロパティが `"authenticated,github_collaborator"` のようにカンマ区切りで返るケースがあります
+- スクリプトは 2025-11-05 時点でこの形式にも対応済みです。挙動を確認したい場合は次のコマンドで現在のレスポンスを確認してください
+
+```powershell
+az staticwebapp users list `
+  --name <AppName> `
+  --resource-group <ResourceGroup> `
+  --query "[].{userId:userId,roles:roles}" `
+  -o table
+```
+
+- 旧バージョンのスクリプトを使用している場合は最新版へ更新してください
+
 ## 制約事項
 
 - GitHubユーザー名での招待となるため、ユーザーは初回アクセス時にGitHub認証が必要です

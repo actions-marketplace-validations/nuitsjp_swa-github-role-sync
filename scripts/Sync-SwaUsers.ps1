@@ -102,7 +102,54 @@ function Get-AzureStaticWebAppUsers {
                     try {
                         $result = $output | ConvertFrom-Json
                         # github_collaboratorロールを持つユーザーを抽出
-                        $users = $result | Where-Object { $_.roles -contains "github_collaborator" } | Select-Object -ExpandProperty userId
+                        $users = @()
+
+                        foreach ($user in $result) {
+                            $rolesValue = $null
+                            if ($user.PSObject.Properties.Name -contains "roles") {
+                                $rolesValue = $user.roles
+                            }
+                            elseif ($user.PSObject.Properties.Name -contains "assignedRoleNames") {
+                                $rolesValue = $user.assignedRoleNames
+                            }
+
+                            $roleList = @()
+
+                            if ($null -ne $rolesValue) {
+                                if ($rolesValue -is [System.Array]) {
+                                    $roleList = $rolesValue | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ }
+                                }
+                                else {
+                                    $rolesText = $rolesValue.ToString().Trim()
+
+                                    if ($rolesText.StartsWith("[") -and $rolesText.EndsWith("]")) {
+                                        try {
+                                            $parsedRoles = $rolesText | ConvertFrom-Json
+                                            if ($parsedRoles -is [System.Array]) {
+                                                $roleList = $parsedRoles | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ }
+                                            }
+                                            elseif ($null -ne $parsedRoles) {
+                                                $roleList = @($parsedRoles.ToString().Trim())
+                                            }
+                                        }
+                                        catch {
+                                            $roleList = @()
+                                        }
+                                    }
+
+                                    if ($roleList.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($rolesText)) {
+                                        $roleList = ($rolesText -split '[,\\s]+') |
+                                            ForEach-Object { $_.Trim() } |
+                                            Where-Object { $_ }
+                                    }
+                                }
+                            }
+
+                            if ($roleList -contains "github_collaborator") {
+                                $users += $user.userId
+                            }
+                        }
+
                         break
                     }
                     catch {

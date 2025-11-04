@@ -156,6 +156,19 @@ az login
 6. **「Azureユーザーの取得に失敗しました」**
    - Azure Static Web Appのリソース名とリソースグループ名が正しいか確認してください
    - 適切な権限（共同作成者ロール以上）があるか確認してください
+7. **「Azureユーザー数が0と表示されるがポータルではユーザーが表示される」**
+   - Azure CLI 2.75 以降では `roles` が `"authenticated,github_collaborator"` のようなカンマ区切り文字列で返る場合があります
+   - 以下で実際のレスポンスを確認し、`roles` の内容を把握してください
+
+```powershell
+az staticwebapp users list `
+  --name <AppName> `
+  --resource-group <ResourceGroup> `
+  --query "[].{userId:userId,roles:roles}" `
+  -o table
+```
+
+   - 2025-11-05 の修正以降、スクリプトはこの形式にも対応しています。古いコピーを使っている場合は最新のスクリプトへ置き換えてください
 
 ## 実行結果の例
 
