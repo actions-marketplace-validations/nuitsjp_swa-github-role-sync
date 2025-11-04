@@ -6,62 +6,83 @@
 
 ## ワークフローファイルの作成
 
-`.github/workflows/sync-users.yml`を作成してください：
+`.github/workflows/sync-swa-users.yml` を作成してください：
 
 ```yaml
-name: Sync Azure SWA Users
+name: Sync Azure Static Web App Users
 
 on:
-  # 毎日午前0時（UTC）に自動実行
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '変更を適用せずに差分だけ確認する'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   schedule:
     - cron: '0 0 * * *'
-  
-  # 手動実行も可能
-  workflow_dispatch:
 
 jobs:
-  sync:
-    runs-on: windows-latest
-    
+  sync-users:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      discussions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DRY_RUN_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
+
     steps:
-      # リポジトリをチェックアウト
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      # Azure CLIでログイン
-      - name: Azure Login
-        uses: azure/login@v1
+      - name: Ensure GITHUB_TOKEN is available
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "GITHUB_TOKEN is required." >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      # GitHub CLIをセットアップ
-      - name: Setup GitHub CLI
-        run: |
-          # GitHub CLIは既にインストール済み
-          # トークンで認証
-          echo "${{ secrets.GH_PAT }}" | gh auth login --with-token
-      
-      # ユーザー同期スクリプトを実行
-      - name: Sync Users
-        run: |
-          .\scripts\Sync-SwaUsers.ps1
-        shell: pwsh
 
-リポジトリはジョブ内でチェックアウトされたGitリポジトリの`origin`リモート（つまり`${{ github.repository }}`）から自動的に解決されます。
-ローカル環境でも同様に `git remote get-url origin` を確認し、対象リポジトリが一致していることを必ずチェックしてください。
-`origin`が未設定だったりGitHub以外を指している場合、スクリプトは実行時にエラーで停止します。
-      
-      # 失敗時の通知（オプション）
-      - name: Notify on failure
-        if: failure()
+      - name: Install GitHub CLI if needed
         run: |
-          Write-Host "ユーザー同期に失敗しました" -ForegroundColor Red
-          # ここに通知処理を追加（例: Slackへの通知など）
+          if ! command -v gh >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y gh
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate GitHub CLI authentication
+        run: gh auth status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure dry-run mode
         shell: pwsh
+        run: |
+          $configPath = "config.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.sync.dryRun = ($env:DRY_RUN_INPUT -eq 'true')
+          $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding utf8
+
+      - name: Sync Static Web App users
+        shell: pwsh
+        run: |
+          & "$PWD/scripts/Sync-SwaUsers.ps1"
 ```
 
 **注意**: `config.json` をリポジトリにコミットし、Azure Static Web App 名やリソースグループ名を記載しておく必要があります。
 機密情報は含まれないため、パブリックリポジトリでも安全に管理できます。
+
+スクリプトは、チェックアウトされたリポジトリの `origin` リモート (`${{ github.repository }}`) から GitHub リポジトリ名を自動検出します。ローカル・CI ともに `git remote get-url origin` が期待するGitHubリポジトリを指しているか必ず確認してください。`origin` が未設定、または GitHub 以外を指す場合はスクリプトがエラーで停止します。
+
+> ℹ️ `GITHUB_TOKEN` のワークフローパーミッションをリポジトリ設定で `Read and write` にしておくと、Discussions への投稿権限（`discussions: write`）が付与され、追加の PAT は不要です。
 
 ## 必要なGitHub Secretsの設定
 
@@ -90,23 +111,7 @@ az ad sp create-for-rbac --name "github-actions-swa-sync" --role contributor \
 
 このコマンドの出力をそのままシークレットに設定してください。
 
-### 2. GH_PAT
-
-GitHub Personal Access Token
-
-**必要なスコープ:**
-- `repo` (フルアクセス) - リポジトリのコラボレーター取得とDiscussions投稿に必要
-
-**注意:** GitHub Discussions への投稿機能を有効にする場合、`repo` スコープが必須です。このスコープにはDiscussionsの読み書き権限が含まれています。
-
-**作成方法:**
-1. GitHub の Settings > Developer settings > Personal access tokens > Tokens (classic)
-2. "Generate new token (classic)" をクリック
-3. `repo` スコープをチェック（これでDiscussionsへの書き込みも可能になります）
-4. トークンを生成してコピー
-5. GitHub Secretsに設定
-
-### 3. config.json
+### 2. config.json
 
 リポジトリにコミットされた `config.json` に、Azure Static Web App名とリソースグループ名を記載しておきます。
 CI 環境でも同じファイルが使用されるため、値の整合性を定期的に確認してください。
@@ -132,20 +137,13 @@ CI 環境でも同じファイルが使用されるため、値の整合性を�
 
 ## ドライランモードでのテスト
 
-本番環境で実行する前に、`config.json` の `sync.dryRun` を `true` に設定してテストすることを推奨します：
-
-```yaml
-      - name: Sync Users (Dry Run)
-        run: |
-          .\scripts\Sync-SwaUsers.ps1
-        shell: pwsh
-```
+手動実行 (`Run workflow`) 時に `dry_run` 入力を `true` に切り替えると、ワークフローが `config.json` の `sync.dryRun` を自動的に `true` に更新して差分だけを確認します。スケジュール実行時は常に `false` が適用され、本番同期が実行されます。
 
 ## 手動実行の方法
 
 1. GitHubリポジトリのActionsタブに移動
 2. "Sync Azure SWA Users"ワークフローを選択
-3. "Run workflow"ボタンをクリック
+3. "Run workflow"ボタンをクリックし、必要に応じて `dry_run` を `true` に変更
 4. ブランチを選択して"Run workflow"を実行
 
 ## ログの確認
@@ -166,11 +164,11 @@ CI 環境でも同じファイルが使用されるため、値の整合性を�
 
 ### "GitHub authentication failed"
 
-**原因:** GH_PATが無効またはスコープが不足
+**原因:** `GITHUB_TOKEN` のパーミッションが不足、またはリポジトリ設定でワークフロートークンが無効化されている
 
 **解決方法:**
-- トークンが有効期限切れでないか確認
-- `repo`スコープが付与されているか確認
+- リポジトリ設定の「Actions > General > Workflow permissions」で `Read and write permissions` を選択
+- ワークフロー内の `permissions` セクションに `discussions: write` が含まれているか確認
 
 ### "Resource not found"
 

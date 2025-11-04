@@ -1,21 +1,37 @@
 name: Sync Azure Static Web App Users
 
 on:
-  # 手動トリガー
   workflow_dispatch:
-
-  # 日次スケジュール実行（UTC 00:00 = JST 09:00）
+    inputs:
+      dry_run:
+        description: '変更を適用せずに差分のみ確認するか'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
   schedule:
     - cron: '0 0 * * *'
 
 jobs:
   sync-users:
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
+      discussions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DRY_RUN_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
 
     steps:
+      - name: Ensure GITHUB_TOKEN is available
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "GITHUB_TOKEN is required for GitHub API access and Discussion postings." >&2
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -24,250 +40,46 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Setup GitHub CLI
+      - name: Install GitHub CLI if needed
         run: |
-          type gh >/dev/null 2>&1 || {
+          if ! command -v gh >/dev/null 2>&1; then
             echo "Installing GitHub CLI..."
             sudo apt-get update
             sudo apt-get install -y gh
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate GitHub CLI authentication
+        run: gh auth status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure dry-run mode
+        shell: pwsh
+        run: |
+          $configPath = "config.json"
+          if (-not (Test-Path $configPath)) {
+              Write-Error "config.json が見つかりません。リポジトリにコミットされていることを確認してください。"
+              exit 1
           }
 
-      - name: Setup GitHub CLI authentication
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $dryRunInput = $env:DRY_RUN_INPUT
+          $dryRun = $dryRunInput -eq 'true'
+
+          if ($null -eq $config.sync) {
+              $config | Add-Member -NotePropertyName sync -NotePropertyValue (@{ dryRun = $dryRun }) -Force
+          }
+          else {
+              $config.sync.dryRun = $dryRun
+          }
+
+          $config | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding utf8
+          Write-Host ("sync.dryRun を {0} に設定しました" -f $dryRun)
+
+      - name: Sync Static Web App users
+        shell: pwsh
         run: |
-          echo "Using GITHUB_TOKEN for authentication"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set parameters
-        id: params
-        run: |
-          # シークレットから設定を取得
-          echo "app_name=${{ secrets.AZURE_STATIC_WEB_APP_NAME }}" >> $GITHUB_OUTPUT
-          echo "resource_group=${{ secrets.AZURE_RESOURCE_GROUP }}" >> $GITHUB_OUTPUT
-          echo "github_repo=${{ github.repository }}" >> $GITHUB_OUTPUT
-
-          # dry_runは手動実行時のみ指定可能
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
-          else
-            echo "dry_run=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Get GitHub collaborators with push permission
-        id: github-users
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "Getting collaborators from ${{ steps.params.outputs.github_repo }}..."
-
-          # GitHub APIでコラボレーター一覧を取得（push権限以上）
-          retries=3
-          for i in $(seq 1 $retries); do
-            collaborators=$(gh api "repos/${{ steps.params.outputs.github_repo }}/collaborators" \
-              --jq '.[] | select(.permissions.push == true or .permissions.admin == true or .permissions.maintain == true) | .login' 2>&1)
-
-            if [ $? -eq 0 ]; then
-              echo "Successfully retrieved collaborators"
-              break
-            elif [ $i -lt $retries ]; then
-              echo "GitHub API call failed. Retrying... ($i/$retries)"
-              sleep 2
-            else
-              echo "Failed to retrieve GitHub collaborators: $collaborators"
-              exit 1
-            fi
-          done
-
-          if [ -z "$collaborators" ]; then
-            echo "No collaborators with push permission found"
-            echo "users=" >> $GITHUB_OUTPUT
-          else
-            # 改行をスペースに変換してJSON配列に変換
-            users_json=$(echo "$collaborators" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-            echo "users=$users_json" >> $GITHUB_OUTPUT
-            echo "Found $(echo "$collaborators" | grep -c .) collaborators"
-          fi
-
-      - name: Get Azure Static Web App users
-        id: azure-users
-        run: |
-          echo "Getting users from Azure Static Web App: ${{ steps.params.outputs.app_name }}..."
-
-          # Azure CLIでユーザー一覧を取得
-          retries=3
-          for i in $(seq 1 $retries); do
-            output=$(az staticwebapp users list \
-              --name "${{ steps.params.outputs.app_name }}" \
-              --resource-group "${{ steps.params.outputs.resource_group }}" 2>&1)
-
-            if [ $? -eq 0 ]; then
-              echo "Successfully retrieved Azure users"
-              break
-            elif [ $i -lt $retries ]; then
-              echo "Azure API call failed. Retrying... ($i/$retries)"
-              sleep 2
-            else
-              echo "Failed to retrieve Azure users: $output"
-              exit 1
-            fi
-          done
-
-          # authenticatedロールを持つユーザーを抽出
-          users_json=$(echo "$output" | jq -c '[.[] | select(.roles | contains(["authenticated"])) | .userId]')
-          echo "users=$users_json" >> $GITHUB_OUTPUT
-          echo "Found $(echo "$users_json" | jq 'length') users in Azure"
-
-      - name: Calculate differences
-        id: diff
-        run: |
-          github_users='${{ steps.github-users.outputs.users }}'
-          azure_users='${{ steps.azure-users.outputs.users }}'
-
-          echo "GitHub users: $github_users"
-          echo "Azure users: $azure_users"
-
-          # 追加が必要なユーザー（GitHubにいてAzureにいない）
-          users_to_add=$(jq -n -c \
-            --argjson gh "$github_users" \
-            --argjson az "$azure_users" \
-            '$gh - $az')
-
-          # 削除が必要なユーザー（Azureにのみ存在）
-          users_to_remove=$(jq -n -c \
-            --argjson gh "$github_users" \
-            --argjson az "$azure_users" \
-            '$az - $gh')
-
-          # 1行のJSON文字列として出力
-          echo "users_to_add=$users_to_add" >> $GITHUB_OUTPUT
-          echo "users_to_remove=$users_to_remove" >> $GITHUB_OUTPUT
-
-          add_count=$(echo "$users_to_add" | jq 'length')
-          remove_count=$(echo "$users_to_remove" | jq 'length')
-
-          echo "Users to add: $add_count"
-          echo "$users_to_add" | jq -r '.[]' | sed 's/^/  - /'
-
-          echo "Users to remove: $remove_count"
-          echo "$users_to_remove" | jq -r '.[]' | sed 's/^/  - /'
-
-          if [ "$add_count" -eq 0 ] && [ "$remove_count" -eq 0 ]; then
-            echo "sync_needed=false" >> $GITHUB_OUTPUT
-          else
-            echo "sync_needed=true" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Add users to Azure Static Web App
-        if: steps.diff.outputs.sync_needed == 'true' && steps.params.outputs.dry_run != 'true'
-        run: |
-          users_to_add='${{ steps.diff.outputs.users_to_add }}'
-          add_count=$(echo "$users_to_add" | jq 'length')
-
-          if [ "$add_count" -eq 0 ]; then
-            echo "No users to add"
-            exit 0
-          fi
-
-          echo "Adding users..."
-
-          # ドメイン名を取得
-          domain=$(az staticwebapp show \
-            --name "${{ steps.params.outputs.app_name }}" \
-            --resource-group "${{ steps.params.outputs.resource_group }}" \
-            --query 'defaultHostname' -o tsv)
-
-          if [ $? -ne 0 ]; then
-            echo "Failed to get domain name"
-            exit 1
-          fi
-
-          success_count=0
-          failure_count=0
-
-          echo "$users_to_add" | jq -r '.[]' | while read -r user; do
-            echo "Inviting user: $user"
-
-            result=$(az staticwebapp users invite \
-              --name "${{ steps.params.outputs.app_name }}" \
-              --resource-group "${{ steps.params.outputs.resource_group }}" \
-              --authentication-provider GitHub \
-              --user-details "$user" \
-              --domain "$domain" \
-              --roles authenticated \
-              --invitation-expiration-in-hours 168 \
-              2>&1)
-
-            if [ $? -eq 0 ]; then
-              echo "Successfully invited user: $user"
-              success_count=$((success_count + 1))
-            else
-              echo "Failed to invite user: $user - $result"
-              failure_count=$((failure_count + 1))
-            fi
-          done
-
-          echo "Added $success_count users, $failure_count failures"
-
-      - name: Remove users from Azure Static Web App
-        if: steps.diff.outputs.sync_needed == 'true' && steps.params.outputs.dry_run != 'true'
-        run: |
-          users_to_remove='${{ steps.diff.outputs.users_to_remove }}'
-          remove_count=$(echo "$users_to_remove" | jq 'length')
-
-          if [ "$remove_count" -eq 0 ]; then
-            echo "No users to remove"
-            exit 0
-          fi
-
-          echo "Removing users..."
-
-          success_count=0
-          failure_count=0
-
-          echo "$users_to_remove" | jq -r '.[]' | while read -r user; do
-            echo "Removing user: $user"
-
-            result=$(az staticwebapp users update \
-              --name "${{ steps.params.outputs.app_name }}" \
-              --resource-group "${{ steps.params.outputs.resource_group }}" \
-              --user-details "$user" \
-              --roles anonymous \
-              2>&1)
-
-            if [ $? -eq 0 ]; then
-              echo "Successfully removed user: $user"
-              success_count=$((success_count + 1))
-            else
-              echo "Failed to remove user: $user - $result"
-              failure_count=$((failure_count + 1))
-            fi
-          done
-
-          echo "Removed $success_count users, $failure_count failures"
-
-      - name: Summary
-        if: always()
-        run: |
-          echo "========================================="
-          echo "Sync Summary"
-          echo "========================================="
-          echo "Sync needed: ${{ steps.diff.outputs.sync_needed }}"
-          echo "Dry run: ${{ steps.params.outputs.dry_run }}"
-
-          if [ "${{ steps.diff.outputs.sync_needed }}" = "true" ]; then
-            users_to_add='${{ steps.diff.outputs.users_to_add }}'
-            users_to_remove='${{ steps.diff.outputs.users_to_remove }}'
-
-            add_count=$(echo "$users_to_add" | jq 'length')
-            remove_count=$(echo "$users_to_remove" | jq 'length')
-
-            echo "Users to add: $add_count"
-            echo "Users to remove: $remove_count"
-
-            if [ "${{ steps.params.outputs.dry_run }}" = "true" ]; then
-              echo "Dry run mode - no changes applied"
-            fi
-          else
-            echo "No synchronization needed"
-          fi
-          echo "========================================="
+          Write-Host "Starting Sync-SwaUsers.ps1 (dryRun = $env:DRY_RUN_INPUT)"
+          & "$PWD/scripts/Sync-SwaUsers.ps1"
