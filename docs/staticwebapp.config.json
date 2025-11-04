@@ -3,7 +3,7 @@
     {
       "route": "/*",
       "allowedRoles": [
-        "github-collaborator"
+        "github_collaborator"
       ]
     }
   ],
