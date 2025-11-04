@@ -39,16 +39,16 @@
     4. GitHubリポジトリへのシークレット登録
 #>
 
+param(
+    [string]$ConfigPath = "config.json"
+)
+
 # エラー発生時に停止
 $ErrorActionPreference = "Stop"
 
 # 共通関数を読み込む
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $scriptDir "common-functions.ps1")
-
-param(
-    [string]$ConfigPath = "config.json"
-)
 
 # Azure Service Principalの作成
 function New-AzureServicePrincipal {
