@@ -78,10 +78,10 @@ function New-AzureServicePrincipal {
                 Write-Log "既存のService Principalの資格情報を再生成します..." -Level INFO
 
                 $credentialResetOutput = az ad sp credential reset `
-                    --name $existingSp.appId `
-                    --credential-description "GitHubActions-$([Guid]::NewGuid().ToString())" `
+                    --id $existingSp.appId `
                     --years 1 `
-                    --output json 2>&1
+                    --output json `
+                    --only-show-errors 2>&1
 
                 if ($LASTEXITCODE -ne 0) {
                     throw "Service Principal の資格情報リセットに失敗しました: $credentialResetOutput"
