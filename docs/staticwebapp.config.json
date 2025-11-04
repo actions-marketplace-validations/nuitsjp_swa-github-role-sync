@@ -7,6 +7,9 @@
       ]
     }
   ],
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
   "responseOverrides": {
     "401": {
       "redirect": "/.auth/login/github",
