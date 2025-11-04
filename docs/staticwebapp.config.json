@@ -10,8 +10,7 @@
     }
   ],
   "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/static/js/*", "/static/css/*", "*.json"]
+    "rewrite": "/index.html"
   },
   "responseOverrides": {
     "401": {
