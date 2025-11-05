@@ -228,7 +228,7 @@ jobs:
 
           invite_success=0
           invite_fail=0
-          declare -a invitations
+          declare -a invitations=()
 
           if [[ ${#to_add[@]} -gt 0 ]]; then
             echo "Azure へ招待を開始します..."
