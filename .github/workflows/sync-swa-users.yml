@@ -329,9 +329,21 @@ jobs:
                 continue
               fi
 
-              title="${discussion_title//{username}/$user}"
-              body="${template_content//{{USERNAME}}/$user}"
+              title="$discussion_title"
+              title="${title//{username}/$user}"
+              title="${title//{USERNAME}/$user}"
+              title="${title//\{\{username\}\}/$user}"
+              title="${title//\{\{USERNAME\}\}/$user}"
+
+              body="$template_content"
+              body="${body//{{USERNAME}}/$user}"
+              body="${body//{{username}}/$user}"
+              body="${body//{username}/$user}"
+              body="${body//{USERNAME}/$user}"
               body="${body//{{INVITATION_URL}}/$invitation_url}"
+              body="${body//{{invitation_url}}/$invitation_url}"
+              body="${body//{invitation_url}/$invitation_url}"
+              body="${body//{INVITATION_URL}/$invitation_url}"
               mutation='mutation($repositoryId:ID!, $categoryId:ID!, $title:String!, $body:String!){ createDiscussion(input:{repositoryId:$repositoryId, categoryId:$categoryId, title:$title, body:$body}) { discussion { url } }}'
 
               if discussion_json="$(gh api graphql -f query="$mutation" -F repositoryId="$repo_id" -F categoryId="$DISCUSSION_CATEGORY_ID" -F title="$title" -F body="$body")"; then
