@@ -153,11 +153,11 @@ jobs:
                   provider: (.provider // ""),
                   roles: (
                     (if (.roles | type) == "array" then .roles
-                     elif (.roles | type) == "string" then [(.roles)]
+                     elif (.roles | type) == "string" then (.roles | split(",") | map(gsub("^\\s+|\\s+$";"")))
                      else [] end)
                     +
                     (if (.assignedRoleNames | type) == "array" then .assignedRoleNames
-                     elif (.assignedRoleNames | type) == "string" then [(.assignedRoleNames)]
+                     elif (.assignedRoleNames | type) == "string" then (.assignedRoleNames | split(",") | map(gsub("^\\s+|\\s+$";"")))
                      else [] end)
                   )
                 }
