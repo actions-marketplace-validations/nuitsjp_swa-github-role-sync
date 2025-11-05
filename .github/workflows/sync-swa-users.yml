@@ -88,30 +88,9 @@ jobs:
             local username="$2"
             local invitation="$3"
 
-            DISCUSSION_VALUE="$value" python - "$username" "$invitation" <<'PY'
-import os
-import sys
+            local script=$'import os\nimport sys\n\ntext = os.environ.get(\"DISCUSSION_VALUE\", \"\")\nusername = sys.argv[1]\ninvitation = sys.argv[2]\n\nreplacements = {\n    \"{{USERNAME}}\": username,\n    \"{{username}}\": username,\n    \"{USERNAME}\": username,\n    \"{username}\": username,\n    \"{{INVITATION_URL}}\": invitation,\n    \"{{invitation_url}}\": invitation,\n    \"{INVITATION_URL}\": invitation,\n    \"{invitation_url}\": invitation,\n}\n\nfor key, replacement in replacements.items():\n    text = text.replace(key, replacement)\n\nsys.stdout.write(text)'
 
-text = os.environ.get("DISCUSSION_VALUE", "")
-username = sys.argv[1]
-invitation = sys.argv[2]
-
-replacements = {
-    "{{USERNAME}}": username,
-    "{{username}}": username,
-    "{USERNAME}": username,
-    "{username}": username,
-    "{{INVITATION_URL}}": invitation,
-    "{{invitation_url}}": invitation,
-    "{INVITATION_URL}": invitation,
-    "{invitation_url}": invitation,
-}
-
-for key, replacement in replacements.items():
-    text = text.replace(key, replacement)
-
-print(text, end="")
-PY
+            DISCUSSION_VALUE="$value" python -c "$script" "$username" "$invitation"
           }
 
           echo "GitHub コラボレーターを取得中..."
