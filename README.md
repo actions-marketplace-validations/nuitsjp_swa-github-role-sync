@@ -235,36 +235,6 @@ az staticwebapp users list `
 - **GitHub認証失敗**: リポジトリ設定の「Actions > General > Workflow permissions」で`Read and write permissions`を選択
 - **リソースが見つからない**: シークレット値が正しいかAzure Portalで確認
 
-## 開発者ガイドライン
-
-### プロジェクト構造
-- `scripts/Sync-SwaUsers.ps1`: ユーザー同期ワークフロー（CLI検証、コラボレーター取得、Azure更新）
-- `.github/workflows/azure-static-web-apps-calm-hill-0f33a0910.yml`: 定期・手動同期ジョブ
-
-### コーディングスタイル
-- 4スペースインデント
-- PascalCaseパラメータ、camelCaseローカル変数
-- PowerShell動詞-名詞関数（例：`Get-GitHubCollaborators`）
-- コメントベースのヘルプブロック
-- `Write-Log`経由でのコンソール出力
-
-### テストガイドライン
-- 新規シナリオは詳細なテスト手順を記載
-- `sync.dryRun: true`でドライラン実施後、本番環境で検証
-- Azure/GitHub CLIエラー出力を含めてバグ報告
-
-### コミット規約
-- 命令形の件名（70文字以内）
-- 例：`Add implementation checklist verifying all requirements are met`
-- 関連するスクリプト/ドキュメント更新を1コミットにまとめる
-- 破壊的変更は明示的に記載
-
-### セキュリティ
-- 認証情報をハードコーディングしない
-- ローカル実行では`az login`セッションを使用
-- 自動化ではGitHub Secrets（`AZURE_CREDENTIALS`、`GH_PAT`）を使用
-- Personal Access Tokenは定期的にローテーション
-
 ## 制約事項
 
 - GitHubユーザー名での招待となるため、ユーザーは初回アクセス時にGitHub認証が必要
