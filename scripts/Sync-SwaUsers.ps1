@@ -17,9 +17,6 @@
 .PARAMETER SubscriptionId
     Static Web App が存在するサブスクリプション ID。config.json がない場合でも引数で指定できます。
 
-.PARAMETER DryRun
-    ドライランモードを明示的に指定します。`true` の場合は差分のみを表示し、変更は行いません。
-
 .PARAMETER DiscussionEnabled
     招待リンクを GitHub Discussions に投稿するかどうかを明示的に指定します。
 
@@ -52,7 +49,6 @@ param(
     [string]$StaticWebAppName,
     [string]$ResourceGroup,
     [string]$SubscriptionId,
-    [Nullable[bool]]$DryRun,
     [Nullable[bool]]$DiscussionEnabled,
     [string]$DiscussionCategoryId,
     [string]$DiscussionTitle,
@@ -456,10 +452,6 @@ try {
         $config.Azure.ResourceGroup = $ResourceGroup
     }
 
-    if ($PSBoundParameters.ContainsKey('DryRun')) {
-        $config.Sync.DryRun = [bool]$DryRun
-    }
-
     if ($PSBoundParameters.ContainsKey('DiscussionEnabled')) {
         $config.Discussion.Enabled = [bool]$DiscussionEnabled
     }
@@ -482,7 +474,6 @@ try {
 
     $AppName = $config.Azure.StaticWebAppName
     $ResourceGroup = $config.Azure.ResourceGroup
-    $DryRun = [bool]$config.Sync.DryRun
     $InvitationExpirationInHours = if ($config.InvitationSettings.PSObject.Properties.Name -contains "ExpiresInHours" -and $null -ne $config.InvitationSettings.ExpiresInHours) {
         [int]$config.InvitationSettings.ExpiresInHours
     }
@@ -532,9 +523,6 @@ try {
     Write-Log "ResourceGroup: $ResourceGroup" -Level INFO
     Write-Log "GitHubRepo: $GitHubRepo (detected from git)" -Level INFO
     Write-Log ("招待リンク有効期限: {0} 時間" -f $InvitationExpirationInHours) -Level INFO
-    if ($DryRun) {
-        Write-Log "実行モード: ドライラン（変更は適用されません）" -Level WARNING
-    }
     if ($discussionEnabled) {
         Write-Log "Discussion投稿: 有効" -Level INFO
     }
@@ -641,12 +629,6 @@ try {
     }
     
     Write-Log "========================================" -Level INFO
-    
-    if ($DryRun) {
-        Write-Log "ドライランモードのため、変更は適用されません" -Level WARNING
-        Write-Log "========================================" -Level INFO
-        exit 0
-    }
     
     # 4. ユーザー同期
     $successCount = 0
