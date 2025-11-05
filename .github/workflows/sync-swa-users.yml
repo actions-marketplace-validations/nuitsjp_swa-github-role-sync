@@ -2,15 +2,6 @@ name: Sync Azure Static Web App Users
 
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: '変更を適用せずに差分のみ確認するか'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
   schedule:
     - cron: '0 0 * * *'
 
@@ -22,7 +13,6 @@ jobs:
       discussions: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      DRY_RUN_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || 'false' }}
       STATIC_WEB_APP_NAME: ${{ secrets.AZURE_STATIC_WEB_APP_NAME }}
       RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
       SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
@@ -64,14 +54,6 @@ jobs:
               exit 1
             fi
           done
-
-          dry_input="${DRY_RUN_INPUT:-false}"
-          dry_flag="$(echo "$dry_input" | tr '[:upper:]' '[:lower:]')"
-          if [[ "$dry_flag" != "true" && "$dry_flag" != "false" ]]; then
-            echo "dry_run 入力 '${dry_input}' は無効です。false として扱います。"
-            dry_flag="false"
-          fi
-          echo "ドライラン: ${dry_flag}"
 
           if [[ -n "${SUBSCRIPTION_ID:-}" ]]; then
             echo "Azure サブスクリプションを設定: ${SUBSCRIPTION_ID}"
@@ -140,6 +122,11 @@ jobs:
             azure_provider_map["$login_lower"]="$provider"
           done < <(
             echo "$azure_raw" | jq -r '
+              def ascii_lower:
+                explode
+                | map(if 65 <= . and . <= 90 then . + 32 else . end)
+                | implode;
+
               map(
                 {
                   userId: (.userId // .name // ""),
@@ -158,7 +145,7 @@ jobs:
                 }
               )
               | .[]
-              | select(any(.roles[]?; (ascii_downcase(.) == "github_collaborator")))
+              | select(any(.roles[]?; ((. | ascii_lower) == "github_collaborator")))
               | @base64
             '
           )
@@ -220,11 +207,6 @@ jobs:
 
           if [[ ${#to_add[@]} -eq 0 && ${#to_remove_keys[@]} -eq 0 ]]; then
             echo "同期対象の差分はありません。"
-            exit 0
-          fi
-
-          if [[ "$dry_flag" == "true" ]]; then
-            echo "ドライランのため変更は実行しません。"
             exit 0
           fi
 
