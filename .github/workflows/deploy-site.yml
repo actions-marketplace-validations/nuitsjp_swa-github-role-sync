@@ -29,9 +29,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Upload static site
+      - name: Deploy static site via SWA CLI
         run: |
-          az staticwebapp upload \
-            --name "$SWA_NAME" \
-            --resource-group "$SWA_RG" \
-            --app-location site
+          npm install -g @azure/static-web-apps-cli
+          TOKEN=$(az staticwebapp secrets list --name "$SWA_NAME" --resource-group "$SWA_RG" --query properties.apiKey -o tsv)
+          if [ -z "$TOKEN" ]; then
+            echo "Failed to obtain deployment token" >&2
+            exit 1
+          fi
+          npx @azure/static-web-apps-cli@latest deploy \
+            --deployment-token "$TOKEN" \
+            --app-location site \
+            --output-location site \
+            --swa-config-location site \
+            --env production
