@@ -47,7 +47,9 @@ describe('buildSummaryMarkdown', () => {
     })
 
     expect(markdown).toContain('Status: failure')
-    expect(markdown).toContain('Discussion: https://github.com/owner/repo/discussions/1')
+    expect(markdown).toContain(
+      'Discussion: https://github.com/owner/repo/discussions/1'
+    )
     expect(markdown).toContain('Error: Azure CLI timed out')
   })
 })

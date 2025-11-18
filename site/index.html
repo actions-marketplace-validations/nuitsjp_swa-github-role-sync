@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -6,7 +6,11 @@
     <title>SWA GitHub Role Sync Sample</title>
     <style>
       body {
-        font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
         margin: 0;
         padding: 1.5rem;
         background: #f7f7f9;
@@ -61,8 +65,8 @@
       <h1>SWA GitHub Role Sync Sample</h1>
       <p>
         Use the buttons below to sign in with GitHub, accept the invite, and
-        verify your assigned roles. The page calls <code>/.auth/me</code> to show
-        authenticated claims.
+        verify your assigned roles. The page calls <code>/.auth/me</code> to
+        show authenticated claims.
       </p>
 
       <div class="actions">
@@ -94,14 +98,16 @@
           const data = await res.json()
           const principal = data?.clientPrincipal
           if (!principal) {
-            status.textContent = 'Not signed in. Use "Sign in with GitHub" and retry.'
+            status.textContent =
+              'Not signed in. Use "Sign in with GitHub" and retry.'
             me.textContent = JSON.stringify(data, null, 2)
             return
           }
           status.textContent = `Signed in as ${principal.userDetails}. Roles: ${principal.userRoles?.join(', ')}`
           me.textContent = JSON.stringify(data, null, 2)
         } catch (error) {
-          status.textContent = 'Failed to call /.auth/me. See console for details.'
+          status.textContent =
+            'Failed to call /.auth/me. See console for details.'
           me.textContent = String(error)
           console.error(error)
         }
