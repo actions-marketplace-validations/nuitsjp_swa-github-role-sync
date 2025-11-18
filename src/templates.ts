@@ -13,6 +13,9 @@ type SummaryParams = {
   added: InvitationResult[]
   updated: UpdateResult[]
   removed: RemovalResult[]
+  discussionUrl?: string
+  status?: 'success' | 'failure'
+  failureMessage?: string
 }
 
 export function buildSummaryMarkdown({
@@ -20,15 +23,27 @@ export function buildSummaryMarkdown({
   swaName,
   added,
   updated,
-  removed
+  removed,
+  discussionUrl,
+  status = 'success',
+  failureMessage
 }: SummaryParams): string {
   const lines: string[] = [
+    `- Status: ${status}`,
     `- Repository: ${repo}`,
     `- Static Web App: ${swaName}`,
     `- Added: ${added.length}`,
     `- Updated: ${updated.length}`,
     `- Removed: ${removed.length}`
   ]
+
+  if (discussionUrl) {
+    lines.push(`- Discussion: ${discussionUrl}`)
+  }
+
+  if (status === 'failure' && failureMessage) {
+    lines.push(`- Error: ${failureMessage}`)
+  }
 
   const sections: string[] = []
 

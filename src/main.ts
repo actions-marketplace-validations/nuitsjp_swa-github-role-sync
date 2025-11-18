@@ -57,10 +57,19 @@ function today(): string {
 }
 
 export async function run(): Promise<void> {
+  let inputs: Inputs | undefined
+  let repoFullName = ''
+  let summaryMarkdown = ''
+  let discussionUrl = ''
+
+  const added: InvitationResult[] = []
+  const updated: UpdateResult[] = []
+  const removed: RemovalResult[] = []
+
   try {
-    const inputs = getInputs()
+    inputs = getInputs()
     const { owner, repo } = parseTargetRepo(inputs.targetRepo)
-    const repoFullName = `${owner}/${repo}`
+    repoFullName = `${owner}/${repo}`
 
     const swaDomain =
       inputs.swaDomain ||
@@ -85,10 +94,6 @@ export async function run(): Promise<void> {
     core.info(
       `Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`
     )
-
-    const added: InvitationResult[] = []
-    const updated: UpdateResult[] = []
-    const removed: RemovalResult[] = []
 
     for (const add of plan.toAdd) {
       const inviteUrl = await inviteUser(
@@ -123,19 +128,20 @@ export async function run(): Promise<void> {
       core.info(`Removed roles from ${removal.login}`)
     }
 
-    const summaryMarkdown = buildSummaryMarkdown({
+    const syncSummaryMarkdown = buildSummaryMarkdown({
       repo: repoFullName,
       swaName: inputs.swaName,
       added,
       updated,
-      removed
+      removed,
+      status: 'success'
     })
 
     const templateValues = {
       swaName: inputs.swaName,
       repo: repoFullName,
       date: today(),
-      summaryMarkdown
+      summaryMarkdown: syncSummaryMarkdown
     }
 
     const discussionTitle = fillTemplate(
@@ -147,7 +153,6 @@ export async function run(): Promise<void> {
       templateValues
     )
 
-    let discussionUrl = ''
     try {
       discussionUrl = await createDiscussion(
         inputs.githubToken,
@@ -163,13 +168,18 @@ export async function run(): Promise<void> {
         error instanceof Error
           ? error.message
           : 'Unknown error creating discussion'
-      core.warning(`Failed to create Discussion: ${message}`)
+      throw new Error(`Failed to create Discussion: ${message}`)
     }
 
-    await core.summary
-      .addHeading('SWA role sync')
-      .addRaw(summaryMarkdown, true)
-      .write()
+    summaryMarkdown = buildSummaryMarkdown({
+      repo: repoFullName,
+      swaName: inputs.swaName,
+      added,
+      updated,
+      removed,
+      discussionUrl,
+      status: 'success'
+    })
 
     core.setOutput('added-count', added.length)
     core.setOutput('updated-count', updated.length)
@@ -177,9 +187,42 @@ export async function run(): Promise<void> {
     core.setOutput('discussion-url', discussionUrl)
   } catch (error) {
     if (error instanceof Error) {
+      core.error(error.message)
+      summaryMarkdown =
+        summaryMarkdown ||
+        buildSummaryMarkdown({
+          repo: repoFullName || 'unknown',
+          swaName: inputs?.swaName ?? 'unknown',
+          added,
+          updated,
+          removed,
+          discussionUrl,
+          status: 'failure',
+          failureMessage: error.message
+        })
       core.setFailed(error.message)
     } else {
+      summaryMarkdown =
+        summaryMarkdown ||
+        buildSummaryMarkdown({
+          repo: repoFullName || 'unknown',
+          swaName: inputs?.swaName ?? 'unknown',
+          added,
+          updated,
+          removed,
+          discussionUrl,
+          status: 'failure',
+          failureMessage: 'Unknown error'
+        })
+      core.error('Unknown error')
       core.setFailed('Unknown error')
+    }
+  } finally {
+    if (summaryMarkdown) {
+      await core.summary
+        .addHeading('SWA role sync')
+        .addRaw(summaryMarkdown, true)
+        .write()
     }
   }
 }

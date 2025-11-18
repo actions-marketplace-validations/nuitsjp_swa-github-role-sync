@@ -22,6 +22,7 @@ describe('buildSummaryMarkdown', () => {
       removed: [{ login: 'carol' }]
     })
 
+    expect(markdown).toContain('Status: success')
     expect(markdown).toContain('Repository: owner/repo')
     expect(markdown).toContain('Static Web App: my-swa')
     expect(markdown).toContain('Added: 1')
@@ -31,5 +32,22 @@ describe('buildSummaryMarkdown', () => {
     expect(markdown).toContain('[Invite link](https://url)')
     expect(markdown).toContain('Updated roles')
     expect(markdown).toContain('Removed users')
+  })
+
+  it('shows failure details and discussion link when provided', () => {
+    const markdown = buildSummaryMarkdown({
+      repo: 'owner/repo',
+      swaName: 'my-swa',
+      added: [],
+      updated: [],
+      removed: [],
+      discussionUrl: 'https://github.com/owner/repo/discussions/1',
+      status: 'failure',
+      failureMessage: 'Azure CLI timed out'
+    })
+
+    expect(markdown).toContain('Status: failure')
+    expect(markdown).toContain('Discussion: https://github.com/owner/repo/discussions/1')
+    expect(markdown).toContain('Error: Azure CLI timed out')
   })
 })
