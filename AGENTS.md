@@ -3,6 +3,7 @@
 ## Primary Directive
 
 - Think in English, interact with the user in Japanese.
+- Can execute GitHub CLI/Azure CLI. Will execute and verify them personally whenever possible.
 
 ## Project Structure & Module Organization
 - Source lives in `src/` (`main.ts` entrypoint; `azure.ts` for CLI calls, `github.ts` for API access, `templates.ts` for discussion text, `plan.ts` for diff logic).
