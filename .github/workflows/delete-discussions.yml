@@ -2,13 +2,6 @@ name: Delete All Discussions
 
 on:
   workflow_dispatch:
-    inputs:
-      confirm:
-        description:
-          'Type DELETE to confirm you want to remove every Discussion in this
-          repository.'
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -19,16 +12,8 @@ jobs:
     name: Purge Discussions
     runs-on: ubuntu-latest
     env:
-      CONFIRM: ${{ github.event.inputs.confirm }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Confirm destructive action
-        run: |
-          if [ "$CONFIRM" != "DELETE" ]; then
-            echo "Confirmation input must be DELETE (received: $CONFIRM)"
-            exit 1
-          fi
-
       - name: Delete all Discussions
         run: |
           set -euo pipefail
