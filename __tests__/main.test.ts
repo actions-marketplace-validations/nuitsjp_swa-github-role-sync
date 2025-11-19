@@ -13,7 +13,10 @@ const errorMock = jest.fn()
 const debugMock = jest.fn()
 const setOutputMock = jest.fn()
 const setFailedMock = jest.fn()
-const getInputValue = (name: string, options?: { required?: boolean }): string => {
+const getInputValue = (
+  name: string,
+  options?: { required?: boolean }
+): string => {
   const value = inputs.get(name) ?? ''
   if (!value && options?.required) {
     throw new Error(`Missing required input: ${name}`)
@@ -175,7 +178,9 @@ describe('run', () => {
       'repo',
       'Announcements',
       'SWA access invites for my-swa (owner/repo) - 2024-01-02',
-      expect.stringContaining('This discussion contains SWA access invite links')
+      expect.stringContaining(
+        'This discussion contains SWA access invite links'
+      )
     )
 
     expect(summaryAddHeadingMock).toHaveBeenCalledWith('SWA role sync')
@@ -212,7 +217,9 @@ describe('run', () => {
 
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Status: failure')
-    expect(summaryMarkdown).toContain('Error: Failed to create Discussion: GraphQL failed')
+    expect(summaryMarkdown).toContain(
+      'Error: Failed to create Discussion: GraphQL failed'
+    )
     expect(summaryWriteMock).toHaveBeenCalled()
   })
 
@@ -225,7 +232,9 @@ describe('run', () => {
 
     listEligibleCollaboratorsMock.mockResolvedValue([])
     listSwaUsersMock.mockResolvedValue([])
-    createDiscussionMock.mockResolvedValue('https://github.com/owner/repo/discussions/999')
+    createDiscussionMock.mockResolvedValue(
+      'https://github.com/owner/repo/discussions/999'
+    )
 
     const { run } = await loadMain()
     await run()
@@ -296,7 +305,9 @@ describe('run', () => {
 
   it('propagates non-Error causes from discussion creation', async () => {
     getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
-    listSwaUsersMock.mockResolvedValue([{ userDetails: 'alice', provider: 'GitHub' }])
+    listSwaUsersMock.mockResolvedValue([
+      { userDetails: 'alice', provider: 'GitHub' }
+    ])
     listEligibleCollaboratorsMock.mockResolvedValue([
       { login: 'alice', role: 'admin' }
     ])
@@ -310,7 +321,9 @@ describe('run', () => {
       'Failed to create Discussion: Unknown error creating discussion'
     )
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
-    expect(summaryMarkdown).toContain('Error: Failed to create Discussion: Unknown error creating discussion')
+    expect(summaryMarkdown).toContain(
+      'Error: Failed to create Discussion: Unknown error creating discussion'
+    )
   })
 
   it('handles missing required inputs before repo parsing', async () => {
@@ -320,7 +333,9 @@ describe('run', () => {
     await run()
 
     expect(getSwaDefaultHostnameMock).not.toHaveBeenCalled()
-    expect(setFailedMock).toHaveBeenCalledWith('Missing required input: github-token')
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'Missing required input: github-token'
+    )
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Repository: unknown')
     expect(summaryMarkdown).toContain('Static Web App: unknown')

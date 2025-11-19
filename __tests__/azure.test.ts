@@ -21,16 +21,20 @@ execFileMock[promisify.custom] = (...args: unknown[]) =>
 function mockExecOnce(stdout: string, assertArgs?: (args: unknown[]) => void) {
   execFileMock.mockImplementationOnce((...args) => {
     assertArgs?.(args)
-    const callback = args.find(
-      (arg) => typeof arg === 'function'
-    ) as (err: Error | null, stdout?: unknown, stderr?: unknown) => void
+    const callback = args.find((arg) => typeof arg === 'function') as (
+      err: Error | null,
+      stdout?: unknown,
+      stderr?: unknown
+    ) => void
     callback(null, stdout, '')
   })
 }
 
 async function loadAzure() {
   jest.resetModules()
-  jest.unstable_mockModule('node:child_process', () => ({ execFile: execFileMock }))
+  jest.unstable_mockModule('node:child_process', () => ({
+    execFile: execFileMock
+  }))
   jest.unstable_mockModule('@actions/core', () => ({ debug: coreDebugMock }))
   return import('../src/azure.js')
 }

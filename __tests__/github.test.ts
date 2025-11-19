@@ -24,7 +24,10 @@ describe('github helpers', () => {
   it('parses target repo input with validation and defaults', async () => {
     const { parseTargetRepo } = await loadGithub()
 
-    expect(parseTargetRepo('owner/repo')).toEqual({ owner: 'owner', repo: 'repo' })
+    expect(parseTargetRepo('owner/repo')).toEqual({
+      owner: 'owner',
+      repo: 'repo'
+    })
     expect(
       parseTargetRepo(undefined, {
         owner: 'ctx-owner',
