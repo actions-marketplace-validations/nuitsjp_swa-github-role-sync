@@ -59,4 +59,39 @@ describe('computeSyncPlan', () => {
     ])
     expect(plan.toRemove).toEqual([{ login: 'bob', currentRoles: '' }])
   })
+
+  it('falls back to displayName when userDetails are missing', () => {
+    const plan = computeSyncPlan(
+      githubUsers,
+      [
+        {
+          displayName: 'Alice',
+          provider: 'GitHub',
+          roles: 'github-admin'
+        }
+      ],
+      'github-admin',
+      'github-writer'
+    )
+
+    expect(plan.toAdd).toEqual([{ login: 'bob', role: 'github-writer' }])
+    expect(plan.toUpdate).toEqual([])
+    expect(plan.toRemove).toEqual([])
+  })
+
+  it('ignores SWA entries without any identifier data', () => {
+    const plan = computeSyncPlan(
+      githubUsers,
+      [{ provider: 'GitHub', roles: 'github-admin' }],
+      'github-admin',
+      'github-writer'
+    )
+
+    expect(plan.toAdd).toEqual([
+      { login: 'alice', role: 'github-admin' },
+      { login: 'bob', role: 'github-writer' }
+    ])
+    expect(plan.toUpdate).toEqual([])
+    expect(plan.toRemove).toEqual([])
+  })
 })

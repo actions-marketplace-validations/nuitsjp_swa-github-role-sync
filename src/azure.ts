@@ -32,10 +32,8 @@ export async function listSwaUsers(
     'json'
   ])
   const users = JSON.parse(stdout) as SwaUser[]
-  core.info(`Azure CLI raw users: ${JSON.stringify(users)}`)
   const githubUsers = users.filter(
-    (user): user is SwaUser & { userDetails: string } =>
-      Boolean(user.userDetails?.trim()) &&
+    (user): user is SwaUser =>
       normalizeProvider(user.provider) === 'github'
   )
   core.debug(`Fetched ${githubUsers.length} SWA GitHub users`)

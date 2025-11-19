@@ -11,6 +11,16 @@ function normalizeLogin(login: string): string {
   return login.trim().toLowerCase()
 }
 
+function resolveSwaLogin(user: SwaUser): string | undefined {
+  if (user.userDetails?.trim()) {
+    return normalizeLogin(user.userDetails)
+  }
+  if (user.displayName?.trim()) {
+    return normalizeLogin(user.displayName)
+  }
+  return undefined
+}
+
 function normalizeRoles(roles: string | undefined): string {
   if (!roles) return ''
   return roles
@@ -35,7 +45,10 @@ export function computeSyncPlan(
 
   const existing = new Map<string, SwaUser>()
   swaUsers.forEach((user) => {
-    existing.set(normalizeLogin(user.userDetails), user)
+    const login = resolveSwaLogin(user)
+    if (login) {
+      existing.set(login, user)
+    }
   })
 
   const toAdd: PlanAdd[] = []

@@ -7,7 +7,8 @@ export type DesiredUser = {
 
 export type SwaUser = {
   userId?: string
-  userDetails: string
+  userDetails?: string
+  displayName?: string
   roles?: string
   provider?: string
 }

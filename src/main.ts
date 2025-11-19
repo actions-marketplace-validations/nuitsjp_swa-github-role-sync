@@ -92,11 +92,6 @@ export async function run(): Promise<void> {
     )
 
     const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup)
-    core.info(
-      `Found ${swaUsers.length} SWA GitHub users: ${
-        swaUsers.length ? swaUsers.map((user) => user.userDetails).join(', ') : 'none'
-      }`
-    )
     const plan = computeSyncPlan(
       githubUsers,
       swaUsers,

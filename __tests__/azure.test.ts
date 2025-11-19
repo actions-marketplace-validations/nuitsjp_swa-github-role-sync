@@ -3,7 +3,6 @@ import { promisify } from 'node:util'
 
 const execFileMock = jest.fn()
 const coreDebugMock = jest.fn()
-const coreInfoMock = jest.fn()
 
 execFileMock[promisify.custom] = (...args: unknown[]) =>
   new Promise((resolve, reject) => {
@@ -36,17 +35,13 @@ async function loadAzure() {
   jest.unstable_mockModule('node:child_process', () => ({
     execFile: execFileMock
   }))
-  jest.unstable_mockModule('@actions/core', () => ({
-    debug: coreDebugMock,
-    info: coreInfoMock
-  }))
+  jest.unstable_mockModule('@actions/core', () => ({ debug: coreDebugMock }))
   return import('../src/azure.js')
 }
 
 beforeEach(() => {
   execFileMock.mockReset()
   coreDebugMock.mockReset()
-  coreInfoMock.mockReset()
 })
 
 describe('azure helpers', () => {
@@ -81,9 +76,11 @@ describe('azure helpers', () => {
 
     expect(users).toEqual([
       { userDetails: 'octocat', roles: 'github-admin', provider: 'GitHub' },
-      { userDetails: 'octo-lower', roles: 'github-writer', provider: 'github' }
+      { userDetails: 'octo-lower', roles: 'github-writer', provider: 'github' },
+      { userDetails: '', roles: 'github-admin', provider: ' Github ' },
+      { roles: 'github-admin', provider: 'GitHub' }
     ])
-    expect(coreDebugMock).toHaveBeenCalledWith('Fetched 2 SWA GitHub users')
+    expect(coreDebugMock).toHaveBeenCalledWith('Fetched 4 SWA GitHub users')
   })
 
   it('resolves default hostname and trims whitespace', async () => {
