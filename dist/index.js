@@ -32419,6 +32419,15 @@ function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussi
     return [lines.join('\n'), sections.join('\n\n')].filter(Boolean).join('\n\n');
 }
 
+const SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT = 25;
+function assertWithinSwaRoleLimit(users) {
+    const uniqueLogins = new Set(users
+        .map((user) => user.login.trim().toLowerCase())
+        .filter((login) => login.length > 0));
+    if (uniqueLogins.size > SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT) {
+        throw new Error(`SWA custom role assignment limit (${SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT}) exceeded: ${uniqueLogins.size} users require custom roles`);
+    }
+}
 function getInputs() {
     return {
         githubToken: coreExports.getInput('github-token', { required: true }),
@@ -32462,6 +32471,7 @@ async function run() {
         const octokit = githubExports.getOctokit(inputs.githubToken);
         const githubUsers = await listEligibleCollaborators(octokit, owner, repo);
         coreExports.info(`Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${repoFullName})`);
+        assertWithinSwaRoleLimit(githubUsers);
         const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup);
         const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite, { rolePrefix: inputs.rolePrefix });
         coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);

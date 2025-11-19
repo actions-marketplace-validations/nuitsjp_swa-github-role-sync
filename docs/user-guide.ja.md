@@ -44,16 +44,16 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 
 ## Inputs Reference
 
-| Input                               | 説明                                                                                  | 推奨値                                                        |
-| ----------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                            | `secrets.GITHUB_TOKEN`(デフォルト)またはリモートrepo対象のPAT |
-| `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                          | 省略でカレントrepoを使用                                      |
-| `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                                       | Azureポータルの正確な名称                                     |
-| `swa-domain`                        | 招待リンクのドメイン。                                                                | カスタムドメイン運用時に必須、無ければ省略                    |
-| `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                         | `github-admin`, `github-writer`                               |
-| `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                                      | `Announcements`など利用者に通知が届くカテゴリ                 |
-| `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                         | `SWA access invites for {swaName} ({repo}) - {date}`          |
-| `discussion-body-template`          | Discussion本文。`{summaryMarkdown}`を含めるとAction生成サマリが埋め込まれる。         | デフォルトテンプレートを推奨                                  |
+| Input                               | 説明                                                                          | 推奨値                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                    | `secrets.GITHUB_TOKEN`(デフォルト)またはリモートrepo対象のPAT |
+| `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                  | 省略でカレントrepoを使用                                      |
+| `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                               | Azureポータルの正確な名称                                     |
+| `swa-domain`                        | 招待リンクのドメイン。                                                        | カスタムドメイン運用時に必須、無ければ省略                    |
+| `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                 | `github-admin`, `github-writer`                               |
+| `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                              | `Announcements`など利用者に通知が届くカテゴリ                 |
+| `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                 | `SWA access invites for {swaName} ({repo}) - {date}`          |
+| `discussion-body-template`          | Discussion本文。`{summaryMarkdown}`を含めるとAction生成サマリが埋め込まれる。 | デフォルトテンプレートを推奨                                  |
 
 ## Step-by-Step Setup
 
@@ -127,7 +127,8 @@ az ad sp create-for-rbac \
 
 #### 1.4 OIDCフェデレーション資格情報を追加
 
-`azure/login@v2`でOIDCを利用するため、前項の`appId`にGitHub Actions主体を紐づけます。
+`azure/login@v2`でOIDCを利用するため、前項の`appId`にGitHub
+Actions主体を紐づけます。
 
 ```bash
 az ad app federated-credential create \
@@ -145,9 +146,7 @@ az ad app federated-credential create \
 
 ```json
 {
-  "audiences": [
-    "api://AzureADTokenExchange"
-  ],
+  "audiences": ["api://AzureADTokenExchange"],
   "issuer": "https://token.actions.githubusercontent.com",
   "name": "swa-role-sync-main",
   "subject": "repo:nuitsjp/swa-github-role-sync:ref:refs/heads/main"
@@ -158,7 +157,8 @@ az ad app federated-credential create \
 
 ### 2. Secrets登録
 
-GitHub側で`Settings → Secrets and variables → Actions`を開き、Step 1で得た値を登録します。
+GitHub側で`Settings → Secrets and variables → Actions`を開き、Step
+1で得た値を登録します。
 
 - `AZURE_CLIENT_ID` → サービスプリンシパルの`appId`
 - `AZURE_TENANT_ID` → `tenant`
@@ -172,7 +172,9 @@ GitHub側で`Settings → Secrets and variables → Actions`を開き、Step 1�
 
 ### 4. Workflow作成
 
-READMEのQuick Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step 2で登録したSecretsを参照するように設定します。複数SWAを同期する場合はworkflowを複数用意して`with`パラメータを切り替えます。
+READMEのQuick
+Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step
+2で登録したSecretsを参照するように設定します。複数SWAを同期する場合はworkflowを複数用意して`with`パラメータを切り替えます。
 
 ### 5. テスト実行
 
