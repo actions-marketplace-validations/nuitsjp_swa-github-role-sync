@@ -28,7 +28,9 @@ export async function listSwaUsers(
     'json'
   ])
   const users = JSON.parse(stdout) as SwaUser[]
-  const githubUsers = users.filter((user) => user.provider === 'GitHub')
+  const githubUsers = users.filter(
+    (user) => user.provider?.toLowerCase() === 'github'
+  )
   core.debug(`Fetched ${githubUsers.length} SWA GitHub users`)
   return githubUsers
 }

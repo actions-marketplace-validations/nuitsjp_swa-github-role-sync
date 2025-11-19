@@ -45,10 +45,15 @@ beforeEach(() => {
 })
 
 describe('azure helpers', () => {
-  it('returns only GitHub users from listSwaUsers', async () => {
+  it('returns only GitHub users from listSwaUsers regardless of provider case', async () => {
     mockExecOnce(
       JSON.stringify([
         { userDetails: 'octocat', roles: 'github-admin', provider: 'GitHub' },
+        {
+          userDetails: 'octo-lower',
+          roles: 'github-writer',
+          provider: 'github'
+        },
         { userDetails: 'other', roles: 'github-writer', provider: 'Twitter' }
       ])
     )
@@ -57,9 +62,10 @@ describe('azure helpers', () => {
     const users = await listSwaUsers('app', 'rg')
 
     expect(users).toEqual([
-      { userDetails: 'octocat', roles: 'github-admin', provider: 'GitHub' }
+      { userDetails: 'octocat', roles: 'github-admin', provider: 'GitHub' },
+      { userDetails: 'octo-lower', roles: 'github-writer', provider: 'github' }
     ])
-    expect(coreDebugMock).toHaveBeenCalledWith('Fetched 1 SWA GitHub users')
+    expect(coreDebugMock).toHaveBeenCalledWith('Fetched 2 SWA GitHub users')
   })
 
   it('resolves default hostname and trims whitespace', async () => {
