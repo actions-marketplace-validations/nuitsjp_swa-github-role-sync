@@ -79,6 +79,25 @@ describe('computeSyncPlan', () => {
     expect(plan.toRemove).toEqual([])
   })
 
+  it('ignores Azure default roles when comparing desired roles', () => {
+    const plan = computeSyncPlan(
+      githubUsers,
+      [
+        {
+          userDetails: 'alice',
+          roles: 'github-admin,anonymous,authenticated',
+          provider: 'GitHub'
+        }
+      ],
+      'github-admin',
+      'github-writer'
+    )
+
+    expect(plan.toAdd).toEqual([{ login: 'bob', role: 'github-writer' }])
+    expect(plan.toUpdate).toEqual([])
+    expect(plan.toRemove).toEqual([])
+  })
+
   it('ignores SWA entries without any identifier data', () => {
     const plan = computeSyncPlan(
       githubUsers,

@@ -32320,7 +32320,7 @@ function normalizeRoles(roles) {
     return roles
         .split(',')
         .map((role) => role.trim().toLowerCase())
-        .filter(Boolean)
+        .filter((role) => role.startsWith('github-'))
         .sort()
         .join(',');
 }
