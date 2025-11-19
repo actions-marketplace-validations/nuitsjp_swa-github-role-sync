@@ -35,23 +35,23 @@ Action の実装は以下を前提とします。
 
 1. GitHub Actions の Workflow で `azure/login`
    を実行し、OIDC 経由で Azure にログインする。
-2. Workflow 内で `swa-github-role-sync` アクションを呼び出す。
-3. アクション内で次を行う：
+1. Workflow 内で `swa-github-role-sync` アクションを呼び出す。
+1. アクション内で次を行う：
    1. GitHub REST
       API を使って、対象リポジトリのコラボレーターとその権限（`permission`）を取得する。
-   2. `permission` が `admin` または `write`（内部的に `maintain` も `write`
+   1. `permission` が `admin` または `write`（内部的に `maintain` も `write`
       と同等に扱われる）ユーザーだけを抽出する。
-   3. Azure CLI
+   1. Azure CLI
       (`az staticwebapp users list`) で、SWA に登録されている GitHub プロバイダーのユーザーとロールを取得する。
-   4. GitHub 側集合と SWA 側集合の差分を計算し、
+   1. GitHub 側集合と SWA 側集合の差分を計算し、
       - GitHub に存在・SWA に未登録 → **新規招待 + ロール付与**
       - GitHub に存在・SWA にも存在 → **ロール更新**
       - GitHub に存在しない・SWA に存在 → **ロール削除（＝同期の本質）**
-   5. `az staticwebapp users invite` で新規ユーザーの招待リンクを生成する。
-   6. 生成された招待リンク／更新結果を Markdown にまとめ、GitHub GraphQL API の
+   1. `az staticwebapp users invite` で新規ユーザーの招待リンクを生成する。
+   1. 生成された招待リンク／更新結果を Markdown にまとめ、GitHub GraphQL API の
       `createDiscussion` ミューテーションで **新規 Discussion**
       を作成し、本文に貼り付ける。
-   7. 同じサマリ（件数・主な対象など）を `GITHUB_STEP_SUMMARY` にも出力する。
+   1. 同じサマリ（件数・主な対象など）を `GITHUB_STEP_SUMMARY` にも出力する。
 
 ### 2.2 同期の定義
 
@@ -102,9 +102,9 @@ permissions:
 ### 4.1 テンプレートから作成
 
 1. GitHub 公式の `actions/typescript-action` テンプレートを開く
-2. 「Use this template」→「Create a new repository」で `swa-github-role-sync`
+1. 「Use this template」→「Create a new repository」で `swa-github-role-sync`
    という名前で作成
-3. Public /
+1. Public /
    Private は運用方針次第（Marketplace 公開を前提にするなら Public が自然）
 
 `actions/typescript-action` テンプレートには、以下が含まれています。
@@ -227,11 +227,11 @@ outputs:
 ### 6.2 GitHub コラボレーターの取得とフィルタ
 
 1. `github-token` で Octokit インスタンスを生成
-2. `target-repo` の指定がなければ、`github.context.repo` を使用
-3. `GET /repos/{owner}/{repo}/collaborators` を使い、全コラボレーターを取得
-4. 各ユーザーの権限を `permission` から判定（`admin` / `maintain` / `write` /
+1. `target-repo` の指定がなければ、`github.context.repo` を使用
+1. `GET /repos/{owner}/{repo}/collaborators` を使い、全コラボレーターを取得
+1. 各ユーザーの権限を `permission` から判定（`admin` / `maintain` / `write` /
    `triage` / `read` など）
-5. `admin` → 「管理者」、`write` / `maintain` → 「writer」として扱う
+1. `admin` → 「管理者」、`write` / `maintain` → 「writer」として扱う
 
 ### 6.3 SWA ユーザー一覧の取得（Azure CLI 利用）
 
@@ -357,7 +357,7 @@ GitHub Discussions の GraphQL API では、`createDiscussion`
 ミューテーションを使って新しい Discussion を作成できます。
 
 1. `discussion-category-name` からカテゴリ ID を取得するクエリを投げる。
-2. `createDiscussion` ミューテーションに、`repositoryId` / `categoryId` /
+1. `createDiscussion` ミューテーションに、`repositoryId` / `categoryId` /
    `title` / `body` を渡して Discussion を作る。
 
 ### 6.6 GITHUB_STEP_SUMMARY への出力
@@ -472,7 +472,7 @@ Action のリポジトリ自体にも普通に Workflow を定義できるので
 
 - 新バージョンを出すたびに：
   1. `v1.2.3` をタグとして切る
-  2. `v1` タグを同じコミットに付け替える
+  1. `v1` タグを同じコミットに付け替える
 
 - Marketplace 公開：
   - Repo を Public にしたうえで、GitHub の Marketpace 公開フローに従う（カテゴリ・branding 等を設定）
