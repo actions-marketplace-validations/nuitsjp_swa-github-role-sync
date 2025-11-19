@@ -1,4 +1,4 @@
-name: Verify
+name: NPM CI
 
 on:
   pull_request:
@@ -7,6 +7,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '31 7 * * 3'
 
 permissions:
   contents: read
@@ -14,8 +16,8 @@ permissions:
 jobs:
   lint:
     name: Format & Lint
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -37,8 +39,8 @@ jobs:
 
   test:
     name: Tests
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -57,9 +59,9 @@ jobs:
 
   bundle:
     name: Bundle & Check dist
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     needs: lint
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -100,7 +102,6 @@ jobs:
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -116,3 +117,63 @@ jobs:
 
       - name: npm audit (production, high+)
         run: npm audit --omit=dev --audit-level=high
+
+  analyze:
+    name: CodeQL Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          config-file: .github/codeql/codeql-config.yml
+          languages: ${{ matrix.language }}
+          source-root: src
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v4
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+
+  licensed:
+    name: Check Licenses
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ruby
+
+      - uses: licensee/setup-licensed@v1.3.2
+        with:
+          version: 4.x
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Licenses
+        run: licensed status

@@ -1,4 +1,4 @@
-name: Deploy sample site to SWA
+name: Deploy Site
 
 on:
   push:

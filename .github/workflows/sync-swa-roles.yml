@@ -1,4 +1,4 @@
-name: Sync SWA roles (prod)
+name: Sync SWA Roles
 
 on:
   workflow_dispatch:
