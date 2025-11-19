@@ -7,10 +7,12 @@ const getSwaDefaultHostnameMock = jest.fn()
 const inviteUserMock = jest.fn()
 const updateUserRolesMock = jest.fn()
 const clearUserRolesMock = jest.fn()
+const getDiscussionCategoryIdMock = jest.fn()
 
 const infoMock = jest.fn()
 const errorMock = jest.fn()
 const debugMock = jest.fn()
+const warningMock = jest.fn()
 const setOutputMock = jest.fn()
 const setFailedMock = jest.fn()
 const getInputValue = (
@@ -57,6 +59,7 @@ async function loadMain() {
     info: infoMock,
     error: errorMock,
     debug: debugMock,
+    warning: warningMock,
     summary
   }))
   jest.unstable_mockModule('@actions/github', () => ({
@@ -73,7 +76,8 @@ async function loadMain() {
   jest.unstable_mockModule('../src/github.js', () => ({
     parseTargetRepo: parseTargetRepoMock,
     listEligibleCollaborators: listEligibleCollaboratorsMock,
-    createDiscussion: createDiscussionMock
+    createDiscussion: createDiscussionMock,
+    getDiscussionCategoryId: getDiscussionCategoryIdMock
   }))
 
   return import('../src/main.js')
@@ -104,17 +108,24 @@ beforeEach(() => {
   infoMock.mockReset()
   errorMock.mockReset()
   debugMock.mockReset()
+  warningMock.mockReset()
   setOutputMock.mockReset()
   setFailedMock.mockReset()
   getInputMock.mockReset()
   parseTargetRepoMock.mockClear()
   listEligibleCollaboratorsMock.mockReset()
   createDiscussionMock.mockReset()
+  getDiscussionCategoryIdMock.mockReset()
   getInputMock.mockImplementation(getInputValue)
 
   summaryAddHeadingMock.mockReset()
   summaryAddRawMock.mockReset()
   summaryWriteMock.mockReset()
+
+  getDiscussionCategoryIdMock.mockResolvedValue({
+    repositoryId: 'repo-id',
+    categoryId: 'cat-id'
+  })
 
   jest.useFakeTimers().setSystemTime(new Date('2024-01-02T12:00:00Z'))
 })
@@ -146,6 +157,12 @@ describe('run', () => {
     await run()
 
     expect(getSwaDefaultHostnameMock).toHaveBeenCalledWith('my-swa', 'my-rg')
+    expect(getDiscussionCategoryIdMock).toHaveBeenCalledWith(
+      'token',
+      'owner',
+      'repo',
+      'Announcements'
+    )
     expect(listSwaUsersMock).toHaveBeenCalledWith('my-swa', 'my-rg')
     expect(listEligibleCollaboratorsMock).toHaveBeenCalled()
     expect(inviteUserMock).toHaveBeenCalledWith(
@@ -180,7 +197,8 @@ describe('run', () => {
       'SWA access invites for my-swa (owner/repo) - 2024-01-02',
       expect.stringContaining(
         'This discussion contains SWA access invite links'
-      )
+      ),
+      { repositoryId: 'repo-id', categoryId: 'cat-id' }
     )
 
     expect(summaryAddHeadingMock).toHaveBeenCalledWith('SWA role sync')
@@ -249,7 +267,11 @@ describe('run', () => {
       'repo',
       'Announcements',
       'Custom title for owner/repo',
-      'Body for my-swa'
+      'Body for my-swa',
+      { repositoryId: 'repo-id', categoryId: 'cat-id' }
+    )
+    expect(warningMock).toHaveBeenCalledWith(
+      'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
     )
     expect(setOutputMock).toHaveBeenCalledWith('added-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith('updated-count', 0)
@@ -257,6 +279,55 @@ describe('run', () => {
     expect(setOutputMock).toHaveBeenCalledWith(
       'discussion-url',
       'https://github.com/owner/repo/discussions/999'
+    )
+  })
+
+  it('logs missing template placeholders', async () => {
+    inputs.set('discussion-body-template', 'Body with {unknown} {summaryMarkdown}')
+
+    listEligibleCollaboratorsMock.mockResolvedValue([])
+    listSwaUsersMock.mockResolvedValue([])
+    createDiscussionMock.mockResolvedValue(
+      'https://github.com/owner/repo/discussions/999'
+    )
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(warningMock).toHaveBeenCalledWith(
+      'Unknown template placeholders with no value: unknown'
+    )
+    expect(createDiscussionMock).toHaveBeenCalledWith(
+      'token',
+      'owner',
+      'repo',
+      'Announcements',
+      expect.any(String),
+      expect.any(String),
+      { repositoryId: 'repo-id', categoryId: 'cat-id' }
+    )
+  })
+
+  it('fails fast when discussion category is missing', async () => {
+    getDiscussionCategoryIdMock.mockRejectedValueOnce(
+      new Error('Discussion category "Announcements" not found')
+    )
+
+    listEligibleCollaboratorsMock.mockResolvedValue([])
+    listSwaUsersMock.mockResolvedValue([])
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(listSwaUsersMock).not.toHaveBeenCalled()
+    expect(createDiscussionMock).not.toHaveBeenCalled()
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'Discussion category "Announcements" not found'
+    )
+    const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
+    expect(summaryMarkdown).toContain('Status: failure')
+    expect(summaryMarkdown).toContain(
+      'Error: Discussion category "Announcements" not found'
     )
   })
 

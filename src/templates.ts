@@ -1,10 +1,21 @@
 import type { InvitationResult, RemovalResult, UpdateResult } from './types.js'
 
+type FillTemplateOptions = {
+  onMissingKey?: (key: string) => void
+}
+
 export function fillTemplate(
   template: string,
-  values: Record<string, string>
+  values: Record<string, string>,
+  options: FillTemplateOptions = {}
 ): string {
-  return template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '')
+  const { onMissingKey } = options
+  return template.replace(/\{(\w+)\}/g, (_, key) => {
+    if (values[key] === undefined) {
+      onMissingKey?.(key)
+    }
+    return values[key] ?? ''
+  })
 }
 
 type SummaryParams = {

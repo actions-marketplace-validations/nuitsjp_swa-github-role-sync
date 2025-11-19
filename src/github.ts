@@ -59,7 +59,7 @@ export async function listEligibleCollaborators(
   return desired
 }
 
-async function findDiscussionCategoryId(
+export async function getDiscussionCategoryId(
   token: string,
   owner: string,
   repo: string,
@@ -106,17 +106,15 @@ export async function createDiscussion(
   repo: string,
   categoryName: string,
   title: string,
-  body: string
+  body: string,
+  categoryIds?: { repositoryId: string; categoryId: string }
 ): Promise<string> {
   const graphqlClient = graphql.defaults({
     headers: { authorization: `token ${token}` }
   })
-  const { repositoryId, categoryId } = await findDiscussionCategoryId(
-    token,
-    owner,
-    repo,
-    categoryName
-  )
+  const { repositoryId, categoryId } =
+    categoryIds ??
+    (await getDiscussionCategoryId(token, owner, repo, categoryName))
 
   const mutation = await graphqlClient<{
     createDiscussion: { discussion: { url: string } }

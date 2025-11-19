@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals'
 import { buildSummaryMarkdown, fillTemplate } from '../src/templates.js'
 
 describe('fillTemplate', () => {
@@ -14,6 +15,19 @@ describe('fillTemplate', () => {
       name: 'world'
     })
     expect(result).toBe('Hello world ')
+  })
+
+  it('notifies when placeholders are missing', () => {
+    const onMissingKey = jest.fn()
+
+    fillTemplate(
+      'Hello {name} {missing} {another}',
+      { name: 'world', another: '' },
+      { onMissingKey }
+    )
+
+    expect(onMissingKey).toHaveBeenCalledTimes(1)
+    expect(onMissingKey).toHaveBeenCalledWith('missing')
   })
 })
 
