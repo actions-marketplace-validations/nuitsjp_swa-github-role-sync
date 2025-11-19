@@ -58,16 +58,80 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 
 ## Step-by-Step Setup
 
-1. **Discussionsカテゴリ作成**:
-   `Settings → General → Discussions → Manage categories`でカテゴリを追加し、名前を控える。
-2. **Secrets登録**: Azureフェデレーション資格情報(`AZURE_CLIENT_ID`,
-   `AZURE_TENANT_ID`,
-   `AZURE_SUBSCRIPTION_ID`)を`Actions secrets and variables`に登録。
-3. **Workflow作成**: READMEのQuick
-   Startサンプルをベースに`.github/workflows/sync-swa-roles.yml`などを配置し、上記inputsを埋める。
-4. **テスト実行**:
-   `workflow_dispatch`で手動実行してログを確認。初回は`core.summary`/Discussionの両方に結果が出るのでユーザーにリンクを共有する。
-5. **スケジュール化**: 問題なければ`schedule`トリガーを有効化し、週次や平日日次など組織ポリシーに合わせてcronを設定。
+### 1. Discussionsカテゴリの準備
+
+`Settings → General → Discussions → Manage categories`で招待サマリを投稿するカテゴリを作成し、`discussion-category-name`に指定する名称を控えます。通知が必要な場合は`Announcements`など既存のカテゴリを流用しても構いません。
+
+### 2. Secrets登録
+
+`Settings → Secrets and variables → Actions`で次の値を登録します。
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+`github-token`としてはデフォルトの`GITHUB_TOKEN`を利用できますが、別リポジトリを`target-repo`に指定する場合はPATを追加してください。
+
+#### 2.1 Azure CLIでIDを取得する例
+
+Azure CLIでログイン済みであれば以下のスクリプトで必要なIDをまとめて取得できます。既存のサービスプリンシパル名を指定するか、コメントアウトしている`create-for-rbac`コマンドで新規作成してください。
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# AzureにログインしているアカウントからIDを取得
+subscription_id=$(az account show --query id -o tsv)
+tenant_id=$(az account show --query tenantId -o tsv)
+
+service_principal_name="swa-github-role-sync"
+
+# 既存SPを参照
+app_id=$(az ad sp list \
+  --display-name "$service_principal_name" \
+  --query "[0].appId" -o tsv)
+
+# 無い場合は次で作成し、出力のappIdを利用
+# az ad sp create-for-rbac \
+#   --name "$service_principal_name" \
+#   --role "Contributor" \
+#   --scopes "/subscriptions/$subscription_id/resourceGroups/<rg-name>" \
+#   --output json
+
+echo "AZURE_SUBSCRIPTION_ID=$subscription_id"
+echo "AZURE_TENANT_ID=$tenant_id"
+echo "AZURE_CLIENT_ID=$app_id"
+```
+
+#### 2.2 Azure CLIでOIDCフェデレーション資格情報を登録
+
+`azure/login@v2`でOIDCを利用するには、Azure ADアプリにGitHub Actions用のフェデレーション資格情報を付与します。以下は`main`ブランチを許可する例です。
+
+```bash
+az ad app federated-credential create \
+  --id "$app_id" \
+  --parameters '{
+    "name": "swa-role-sync-main",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "subject": "repo:nuitsjp/swa-github-role-sync:ref:refs/heads/main",
+    "description": "OIDC for swa-github-role-sync workflow",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
+`subject`はworkflowの種類に応じて変更します。例えば`workflow_dispatch`専用にしたい場合は`ref:refs/heads/<branch>`を固定し、`environment:<env-name>`で環境スコープを指定することもできます。
+
+### 3. Workflow作成
+
+READMEのQuick Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step 2で登録したSecretsを参照するように設定します。複数SWAに展開する場合はworkflowを複製し、それぞれの`discussion-category-name`と`role`設定を分けます。
+
+### 4. テスト実行
+
+`workflow_dispatch`で手動実行し、`core.summary`とDiscussion本文が期待どおりか確認します。初回の同期では対象ユーザー全員に招待が発行されるため、通知タイミングをチームと共有しておきましょう。
+
+### 5. スケジュール化
+
+動作に問題が無ければ`schedule`トリガーを追加し、週次や平日日次など組織の棚卸しサイクルに合わせてcron式を設定します。Pull Requestマージ後に即反映したい場合は`push`イベントも併用できます。
 
 ## Recommended Workflow Patterns
 
