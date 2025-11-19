@@ -6,7 +6,7 @@ author: Atsushi Nakamura
 # Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
   icon: users
-  color: blue
+  color: purple
 
 inputs:
   github-token:

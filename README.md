@@ -92,3 +92,13 @@ jobs:
 - Bundle for release: `npm run bundle` (runs prettier + `rollup`)
 
 See `docs/design.md` for the detailed design.
+
+## Release & versioning
+
+- Tags follow SemVer (`v1.2.3`), while the floating `v1` tag always points to the
+  latest stable major release.
+- See [`docs/release.md`](docs/release.md) for the release checklistと自動リリースノート手順。
+- GitHub Releaseは`gh release create vX.Y.Z --generate-notes`で自動生成ノートを利用し、
+  追加のMarkdownファイルは不要です。
+- リリースワークフローはGitHub UI(`workflow_dispatch`で`version`入力)と`push`の`v*`タグ
+  トリガーの両方に対応し、手動/CLIのどちらからでも同じ処理を再現できます。
