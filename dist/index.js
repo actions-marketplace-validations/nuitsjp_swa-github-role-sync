@@ -31273,9 +31273,7 @@ async function listSwaUsers(name, resourceGroup) {
         'json'
     ]);
     const users = JSON.parse(stdout);
-    coreExports.info(`Azure CLI raw users: ${JSON.stringify(users)}`);
-    const githubUsers = users.filter((user) => Boolean(user.userDetails?.trim()) &&
-        normalizeProvider(user.provider) === 'github');
+    const githubUsers = users.filter((user) => normalizeProvider(user.provider) === 'github');
     coreExports.debug(`Fetched ${githubUsers.length} SWA GitHub users`);
     return githubUsers;
 }
@@ -32307,6 +32305,15 @@ async function createDiscussion(token, owner, repo, categoryName, title, body, c
 function normalizeLogin(login) {
     return login.trim().toLowerCase();
 }
+function resolveSwaLogin(user) {
+    if (user.userDetails?.trim()) {
+        return normalizeLogin(user.userDetails);
+    }
+    if (user.displayName?.trim()) {
+        return normalizeLogin(user.displayName);
+    }
+    return undefined;
+}
 function normalizeRoles(roles) {
     if (!roles)
         return '';
@@ -32325,7 +32332,10 @@ function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite) {
     });
     const existing = new Map();
     swaUsers.forEach((user) => {
-        existing.set(normalizeLogin(user.userDetails), user);
+        const login = resolveSwaLogin(user);
+        if (login) {
+            existing.set(login, user);
+        }
     });
     const toAdd = [];
     const toUpdate = [];
@@ -32440,7 +32450,6 @@ async function run() {
         const githubUsers = await listEligibleCollaborators(octokit, owner, repo);
         coreExports.info(`Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${repoFullName})`);
         const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup);
-        coreExports.info(`Found ${swaUsers.length} SWA GitHub users: ${swaUsers.length ? swaUsers.map((user) => user.userDetails).join(', ') : 'none'}`);
         const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite);
         coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);
         for (const add of plan.toAdd) {
