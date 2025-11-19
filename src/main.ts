@@ -9,6 +9,7 @@ import {
 } from './azure.js'
 import {
   createDiscussion,
+  getDiscussionCategoryId,
   listEligibleCollaborators,
   parseTargetRepo
 } from './github.js'
@@ -71,6 +72,13 @@ export async function run(): Promise<void> {
     const { owner, repo } = parseTargetRepo(inputs.targetRepo)
     repoFullName = `${owner}/${repo}`
 
+    const categoryIds = await getDiscussionCategoryId(
+      inputs.githubToken,
+      owner,
+      repo,
+      inputs.discussionCategoryName
+    )
+
     const swaDomain =
       inputs.swaDomain ||
       (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup))
@@ -84,6 +92,11 @@ export async function run(): Promise<void> {
     )
 
     const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup)
+    core.info(
+      `Found ${swaUsers.length} SWA GitHub users: ${
+        swaUsers.length ? swaUsers.map((user) => user.userDetails).join(', ') : 'none'
+      }`
+    )
     const plan = computeSyncPlan(
       githubUsers,
       swaUsers,
@@ -144,14 +157,34 @@ export async function run(): Promise<void> {
       summaryMarkdown: syncSummaryMarkdown
     }
 
+    const missingTemplateKeys = new Set<string>()
+    const onMissingKey = (key: string): void => {
+      missingTemplateKeys.add(key)
+    }
+
     const discussionTitle = fillTemplate(
       inputs.discussionTitleTemplate,
-      templateValues
+      templateValues,
+      { onMissingKey }
     )
-    const discussionBody = fillTemplate(
-      inputs.discussionBodyTemplate,
-      templateValues
-    )
+    const discussionBodyTemplate = inputs.discussionBodyTemplate
+    const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
+      onMissingKey
+    })
+
+    if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
+      core.warning(
+        'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
+      )
+    }
+
+    if (missingTemplateKeys.size) {
+      core.warning(
+        `Unknown template placeholders with no value: ${[
+          ...missingTemplateKeys
+        ].join(', ')}`
+      )
+    }
 
     try {
       discussionUrl = await createDiscussion(
@@ -160,7 +193,8 @@ export async function run(): Promise<void> {
         repo,
         inputs.discussionCategoryName,
         discussionTitle,
-        discussionBody
+        discussionBody,
+        categoryIds
       )
       core.info(`Created Discussion: ${discussionUrl}`)
     } catch (error) {
