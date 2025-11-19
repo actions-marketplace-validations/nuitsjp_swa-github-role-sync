@@ -94,6 +94,7 @@ function setDefaultInputs() {
   inputs.set('swa-domain', '')
   inputs.set('role-for-admin', 'github-admin')
   inputs.set('role-for-write', 'github-writer')
+  inputs.set('role-prefix', '')
 }
 
 beforeEach(() => {

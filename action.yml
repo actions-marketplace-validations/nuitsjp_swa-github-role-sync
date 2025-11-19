@@ -45,6 +45,11 @@ inputs:
     required: false
     default: github-writer
 
+  role-prefix:
+    description: 'Prefix used to detect SWA roles managed by this action.'
+    required: false
+    default: github-
+
   discussion-category-name:
     description:
       'Discussion category name where invite summary Discussion will be created.'

@@ -32312,6 +32312,7 @@ async function createDiscussion(token, owner, repo, categoryName, title, body, c
     return mutation.createDiscussion.discussion.url;
 }
 
+const DEFAULT_ROLE_PREFIX = 'github-';
 function normalizeLogin(login) {
     return login.trim().toLowerCase();
 }
@@ -32324,17 +32325,18 @@ function resolveSwaLogin(user) {
     }
     return undefined;
 }
-function normalizeRoles(roles) {
+function normalizeRoles(roles, rolePrefix) {
     if (!roles)
         return '';
     return roles
         .split(',')
         .map((role) => role.trim().toLowerCase())
-        .filter((role) => role.startsWith('github-'))
+        .filter((role) => role.startsWith(rolePrefix))
         .sort()
         .join(',');
 }
-function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite) {
+function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite, options) {
+    const rolePrefix = options?.rolePrefix ?? DEFAULT_ROLE_PREFIX;
     const desired = new Map();
     githubUsers.forEach((user) => {
         const role = user.role === 'admin' ? roleForAdmin : roleForWrite;
@@ -32356,8 +32358,8 @@ function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite) {
             toAdd.push({ login, role });
             continue;
         }
-        const currentRoles = normalizeRoles(current.roles);
-        const desiredRoles = normalizeRoles(role);
+        const currentRoles = normalizeRoles(current.roles, rolePrefix);
+        const desiredRoles = normalizeRoles(role, rolePrefix);
         if (currentRoles !== desiredRoles) {
             toUpdate.push({
                 login,
@@ -32426,6 +32428,7 @@ function getInputs() {
         swaDomain: coreExports.getInput('swa-domain'),
         roleForAdmin: coreExports.getInput('role-for-admin') || 'github-admin',
         roleForWrite: coreExports.getInput('role-for-write') || 'github-writer',
+        rolePrefix: coreExports.getInput('role-prefix') || 'github-',
         discussionCategoryName: coreExports.getInput('discussion-category-name', {
             required: true
         }),
@@ -32460,7 +32463,7 @@ async function run() {
         const githubUsers = await listEligibleCollaborators(octokit, owner, repo);
         coreExports.info(`Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${repoFullName})`);
         const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup);
-        const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite);
+        const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite, { rolePrefix: inputs.rolePrefix });
         coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);
         for (const add of plan.toAdd) {
             const inviteUrl = await inviteUser(inputs.swaName, inputs.swaResourceGroup, swaDomain, add.login, add.role);

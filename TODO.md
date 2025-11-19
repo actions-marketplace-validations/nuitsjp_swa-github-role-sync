@@ -10,7 +10,7 @@ cliでGitHub Actionsの動作確認を行ってください。
 
 ## 2. 柔軟性の向上 (Configuration)
 
-- [ ] `src/plan.ts`でハードコードされている`github-`プレフィックスを定数化、あるいは入力パラメーター（`action.yml`）で変更可能にすることを検討・実装する。
+- [x] `src/plan.ts`でハードコードされている`github-`プレフィックスを定数化、あるいは入力パラメーター（`action.yml`）で変更可能にすることを検討・実装する。
 
 ## 3. SWAユーザー数制限のチェック (Validation)
 

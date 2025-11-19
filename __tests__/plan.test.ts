@@ -113,4 +113,38 @@ describe('computeSyncPlan', () => {
     expect(plan.toUpdate).toEqual([])
     expect(plan.toRemove).toEqual([])
   })
+
+  it('allows configuring the role prefix used for comparison', () => {
+    const plan = computeSyncPlan(
+      githubUsers,
+      [
+        {
+          userDetails: 'alice',
+          roles: 'custom-admin,anonymous',
+          provider: 'GitHub'
+        },
+        {
+          userDetails: 'bob',
+          roles: 'legacy-role',
+          provider: 'GitHub'
+        },
+        {
+          userDetails: 'carol',
+          roles: 'custom-writer',
+          provider: 'GitHub'
+        }
+      ],
+      'custom-admin',
+      'custom-writer',
+      { rolePrefix: 'custom-' }
+    )
+
+    expect(plan.toAdd).toEqual([])
+    expect(plan.toUpdate).toEqual([
+      { login: 'bob', role: 'custom-writer', currentRoles: 'legacy-role' }
+    ])
+    expect(plan.toRemove).toEqual([
+      { login: 'carol', currentRoles: 'custom-writer' }
+    ])
+  })
 })

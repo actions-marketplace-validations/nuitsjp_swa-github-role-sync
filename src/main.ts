@@ -25,6 +25,7 @@ type Inputs = {
   swaDomain?: string
   roleForAdmin: string
   roleForWrite: string
+  rolePrefix: string
   discussionCategoryName: string
   discussionTitleTemplate: string
   discussionBodyTemplate: string
@@ -39,6 +40,7 @@ function getInputs(): Inputs {
     swaDomain: core.getInput('swa-domain'),
     roleForAdmin: core.getInput('role-for-admin') || 'github-admin',
     roleForWrite: core.getInput('role-for-write') || 'github-writer',
+    rolePrefix: core.getInput('role-prefix') || 'github-',
     discussionCategoryName: core.getInput('discussion-category-name', {
       required: true
     }),
@@ -96,7 +98,8 @@ export async function run(): Promise<void> {
       githubUsers,
       swaUsers,
       inputs.roleForAdmin,
-      inputs.roleForWrite
+      inputs.roleForWrite,
+      { rolePrefix: inputs.rolePrefix }
     )
 
     core.info(

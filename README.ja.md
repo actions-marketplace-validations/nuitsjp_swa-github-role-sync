@@ -107,6 +107,7 @@ jobs:
 | `swa-domain`                | false    | SWA既定ホスト名                                      | 招待リンクに含めるカスタムドメイン。省略時は`az staticwebapp show`で解決。                |
 | `role-for-admin`            | false    | `github-admin`                                       | GitHub `admin`に付与するSWAロール名。                                                     |
 | `role-for-write`            | false    | `github-writer`                                      | GitHub `write`/`maintain`に付与するSWAロール名。                                          |
+| `role-prefix`               | false    | `github-`                                            | 差分対象とするSWAロールのプレフィックス。`role-for-*`で独自ロールを設定する際に指定。     |
 | `discussion-category-name`  | true     | –                                                    | 招待サマリを投稿するDiscussionカテゴリ名。                                                |
 | `discussion-title-template` | false    | `SWA access invites for {swaName} ({repo}) - {date}` | Discussionタイトルテンプレート。`{swaName}`, `{repo}`, `{date}`を差し込み可能。           |
 | `discussion-body-template`  | false    | See `action.yml`                                     | Discussion本文テンプレート。`{summaryMarkdown}`を含めると同期サマリを挿入。               |
@@ -124,7 +125,7 @@ jobs:
 
 - Discussion本文テンプレートに`{summaryMarkdown}`が含まれない場合は警告が出力され、`GITHUB_STEP_SUMMARY`でのみ結果を確認できます。
 - `target-repo`を他リポジトリに向ける際は`github-token`に対象リポジトリへアクセス可能なPATをセットしてください。
-- 差分ロジックは`github-*`で始まるロールのみを同期対象としています。独自ロールを追加したい場合はAction側のコードか命名規則を合わせる必要があります。
+- 差分ロジックは`role-prefix`で指定したプレフィックスに一致するロールのみを同期対象としています。`role-for-*`で独自ロールを指定する場合は同じプレフィックスを使ってください。
 
 ## Local Testing
 
@@ -148,7 +149,7 @@ npm run local-action
 
 ## Additional Documentation
 
-- ユーザー向け詳細ガイド: `docs/user-guide.ja.md`（作成中）
+- ユーザー向け詳細ガイド: `docs/user-guide.ja.md`
 - 開発・テスト・リリース手順: `docs/dev-guide.ja.md`（作成中）
 - アーキテクチャと設計メモ: `docs/architecture.ja.md`（作成中）
 

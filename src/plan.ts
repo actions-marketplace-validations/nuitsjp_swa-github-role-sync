@@ -7,6 +7,8 @@ import type {
   SyncPlan
 } from './types.js'
 
+export const DEFAULT_ROLE_PREFIX = 'github-'
+
 function normalizeLogin(login: string): string {
   return login.trim().toLowerCase()
 }
@@ -21,12 +23,15 @@ function resolveSwaLogin(user: SwaUser): string | undefined {
   return undefined
 }
 
-function normalizeRoles(roles: string | undefined): string {
+function normalizeRoles(
+  roles: string | undefined,
+  rolePrefix: string
+): string {
   if (!roles) return ''
   return roles
     .split(',')
     .map((role) => role.trim().toLowerCase())
-    .filter((role) => role.startsWith('github-'))
+    .filter((role) => role.startsWith(rolePrefix))
     .sort()
     .join(',')
 }
@@ -35,8 +40,12 @@ export function computeSyncPlan(
   githubUsers: DesiredUser[],
   swaUsers: SwaUser[],
   roleForAdmin: string,
-  roleForWrite: string
+  roleForWrite: string,
+  options?: {
+    rolePrefix?: string
+  }
 ): SyncPlan {
+  const rolePrefix = options?.rolePrefix ?? DEFAULT_ROLE_PREFIX
   const desired = new Map<string, string>()
   githubUsers.forEach((user) => {
     const role = user.role === 'admin' ? roleForAdmin : roleForWrite
@@ -62,8 +71,8 @@ export function computeSyncPlan(
       continue
     }
 
-    const currentRoles = normalizeRoles(current.roles)
-    const desiredRoles = normalizeRoles(role)
+    const currentRoles = normalizeRoles(current.roles, rolePrefix)
+    const desiredRoles = normalizeRoles(role, rolePrefix)
     if (currentRoles !== desiredRoles) {
       toUpdate.push({
         login,
