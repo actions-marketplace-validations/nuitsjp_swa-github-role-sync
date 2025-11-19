@@ -12,6 +12,10 @@ async function runAzCommand(args: string[]): Promise<string> {
   return stdout
 }
 
+function normalizeProvider(provider: string | undefined): string {
+  return provider ? provider.trim().toLowerCase() : ''
+}
+
 export async function listSwaUsers(
   name: string,
   resourceGroup: string
@@ -29,7 +33,9 @@ export async function listSwaUsers(
   ])
   const users = JSON.parse(stdout) as SwaUser[]
   const githubUsers = users.filter(
-    (user) => user.provider?.toLowerCase() === 'github'
+    (user): user is SwaUser & { userDetails: string } =>
+      Boolean(user.userDetails?.trim()) &&
+      normalizeProvider(user.provider) === 'github'
   )
   core.debug(`Fetched ${githubUsers.length} SWA GitHub users`)
   return githubUsers

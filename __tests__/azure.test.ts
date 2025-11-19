@@ -54,6 +54,19 @@ describe('azure helpers', () => {
           roles: 'github-writer',
           provider: 'github'
         },
+        {
+          userDetails: '',
+          roles: 'github-admin',
+          provider: ' Github '
+        },
+        {
+          roles: 'github-admin',
+          provider: 'GitHub'
+        },
+        {
+          userDetails: 'ghost',
+          roles: 'github-writer'
+        },
         { userDetails: 'other', roles: 'github-writer', provider: 'Twitter' }
       ])
     )
