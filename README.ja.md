@@ -15,8 +15,8 @@ Requestやブランチ保護の運用と整合させたいケースを想定し�
 
 ## Overview
 
-このActionは、GitHub REST/GraphQL APIとAzure CLI
-（`az staticwebapp ...`）を組み合わせ、次のフローを1ステップのworkflowで提供します。
+このActionは、GitHub REST/GraphQL APIとAzure
+CLI（`az staticwebapp ...`）を組み合わせ、次のフローを1ステップのworkflowで提供します。
 
 1. 対象リポジトリのコラボレーターのうち`admin` / `maintain` /
    `write`相当のユーザーを列挙する。

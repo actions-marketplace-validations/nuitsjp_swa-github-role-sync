@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type DELETE to confirm you want to remove every Discussion in this repository.'
+        description:
+          'Type DELETE to confirm you want to remove every Discussion in this
+          repository.'
         required: true
         type: string
 

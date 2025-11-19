@@ -44,16 +44,16 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 
 ## Inputs Reference
 
-| Input                               | 説明                                                                          | 推奨値                                                        |
-| ----------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Input                               | 説明                                                                          | 推奨値                                                          |
+| ----------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                    | `secrets.GITHUB_TOKEN`（デフォルト）またはリモートrepo対象のPAT |
-| `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                  | 省略でカレントrepoを使用                                      |
-| `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                               | Azureポータルの正確な名称                                     |
-| `swa-domain`                        | 招待リンクのドメイン。                                                        | カスタムドメイン運用時に必須、無ければ省略                    |
-| `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                 | `github-admin`, `github-writer`                               |
-| `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                              | `Announcements`など利用者に通知が届くカテゴリ                 |
-| `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                 | `SWA access invites for {swaName} ({repo}) - {date}`          |
-| `discussion-body-template`          | Discussion本文。`{summaryMarkdown}`を含めるとAction生成サマリが埋め込まれる。 | デフォルトテンプレートを推奨                                  |
+| `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                  | 省略でカレントrepoを使用                                        |
+| `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                               | Azureポータルの正確な名称                                       |
+| `swa-domain`                        | 招待リンクのドメイン。                                                        | カスタムドメイン運用時に必須、無ければ省略                      |
+| `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                 | `github-admin`, `github-writer`                                 |
+| `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                              | `Announcements`など利用者に通知が届くカテゴリ                   |
+| `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                 | `SWA access invites for {swaName} ({repo}) - {date}`            |
+| `discussion-body-template`          | Discussion本文。`{summaryMarkdown}`を含めるとAction生成サマリが埋め込まれる。 | デフォルトテンプレートを推奨                                    |
 
 ## Step-by-Step Setup
 
@@ -184,7 +184,8 @@ gh secret set AZURE_SUBSCRIPTION_ID \
   --body "3b8a5c2d-1234-5678-9abc-def012345678"
 ```
 
-Organization全体で共有したい場合は`--org <org> --app actions`を指定します。`gh auth login`でGitHub CLIにログイン済みであることを事前に確認してください。
+Organization全体で共有したい場合は`--org <org> --app actions`を指定します。`gh auth login`でGitHub
+CLIにログイン済みであることを事前に確認してください。
 
 ### 3. Discussionsカテゴリの準備
 
@@ -247,7 +248,8 @@ jobs:
           discussion-body-template: ${{ vars.DISCUSSION_BODY_TEMPLATE }}
 ```
 
-`vars`を参照することで、テンプレート変更をUIまたはGitHub CLI経由で完結でき、レビュー負荷を抑えたままチームに合わせた告知文面へ差し替えられます。複数SWAを同期する場合はworkflowを複製し、`with`の`{swa-*}`入力や使用するテンプレート変数名を切り替えます。
+`vars`を参照することで、テンプレート変更をUIまたはGitHub
+CLI経由で完結でき、レビュー負荷を抑えたままチームに合わせた告知文面へ差し替えられます。複数SWAを同期する場合はworkflowを複製し、`with`の`{swa-*}`入力や使用するテンプレート変数名を切り替えます。
 
 ### 5. テスト実行
 
