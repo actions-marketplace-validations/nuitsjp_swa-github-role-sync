@@ -31252,10 +31252,20 @@ var githubExports = requireGithub();
 
 const execFileAsync = promisify(execFile);
 async function runAzCommand(args) {
-    const { stdout } = await execFileAsync('az', args, {
-        maxBuffer: 10 * 1024 * 1024
-    });
-    return stdout;
+    try {
+        const { stdout } = await execFileAsync('az', args, {
+            maxBuffer: 10 * 1024 * 1024
+        });
+        return stdout;
+    }
+    catch (error) {
+        const execError = error;
+        const stderr = typeof execError?.stderr === 'string' ? execError.stderr.trim() : '';
+        if (stderr && !execError.message.includes(stderr)) {
+            execError.message = `${execError.message}\n${stderr}`;
+        }
+        throw execError;
+    }
 }
 function normalizeProvider(provider) {
     return provider ? provider.trim().toLowerCase() : '';

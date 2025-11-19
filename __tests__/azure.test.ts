@@ -30,6 +30,24 @@ function mockExecOnce(stdout: string, assertArgs?: (args: unknown[]) => void) {
   })
 }
 
+function mockExecErrorOnce(
+  errorMessage: string,
+  stderrMessage: string,
+  assertArgs?: (args: unknown[]) => void
+) {
+  execFileMock.mockImplementationOnce((...args) => {
+    assertArgs?.(args)
+    const callback = args.find((arg) => typeof arg === 'function') as (
+      err: Error | null,
+      stdout?: unknown,
+      stderr?: unknown
+    ) => void
+    const error = new Error(errorMessage) as Error & { stderr?: string }
+    error.stderr = stderrMessage
+    callback(error, '', stderrMessage)
+  })
+}
+
 async function loadAzure() {
   jest.resetModules()
   jest.unstable_mockModule('node:child_process', () => ({
@@ -99,6 +117,44 @@ describe('azure helpers', () => {
     await expect(getSwaDefaultHostname('app', 'rg')).rejects.toThrow(
       'Failed to resolve default hostname for Static Web App'
     )
+  })
+
+  it('includes stderr output when Azure CLI fails', async () => {
+    mockExecErrorOnce(
+      'Command failed: az staticwebapp show',
+      'AuthorizationFailed: access denied'
+    )
+
+    const { getSwaDefaultHostname } = await loadAzure()
+    const promise = getSwaDefaultHostname('app', 'rg')
+    await expect(promise).rejects.toThrow(/AuthorizationFailed: access denied/)
+    await expect(promise).rejects.toThrow(/Command failed: az staticwebapp show/)
+  })
+
+  it('keeps original error message when stderr output is empty', async () => {
+    expect.assertions(1)
+    mockExecErrorOnce('Command failed: az staticwebapp show', '')
+
+    const { getSwaDefaultHostname } = await loadAzure()
+    await getSwaDefaultHostname('app', 'rg').catch((error) => {
+      expect(error.message).toBe('Command failed: az staticwebapp show')
+    })
+  })
+
+  it('does not duplicate stderr content when already present in message', async () => {
+    expect.assertions(2)
+    const stderr = 'AuthorizationFailed: repeating details'
+    mockExecErrorOnce(
+      `Command failed: az staticwebapp show\n${stderr}`,
+      stderr
+    )
+
+    const { getSwaDefaultHostname } = await loadAzure()
+    await getSwaDefaultHostname('app', 'rg').catch((error) => {
+      const message = error.message
+      expect(message).toContain(stderr)
+      expect(message.split(stderr).length - 1).toBe(1)
+    })
   })
 
   it('invites and updates users via Azure CLI', async () => {

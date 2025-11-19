@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, type ExecFileException } from 'node:child_process'
 import { promisify } from 'node:util'
 import * as core from '@actions/core'
 import type { SwaUser } from './types.js'
@@ -6,10 +6,20 @@ import type { SwaUser } from './types.js'
 const execFileAsync = promisify(execFile)
 
 async function runAzCommand(args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('az', args, {
-    maxBuffer: 10 * 1024 * 1024
-  })
-  return stdout
+  try {
+    const { stdout } = await execFileAsync('az', args, {
+      maxBuffer: 10 * 1024 * 1024
+    })
+    return stdout
+  } catch (error) {
+    const execError = error as ExecFileException & { stderr?: string }
+    const stderr =
+      typeof execError?.stderr === 'string' ? execError.stderr.trim() : ''
+    if (stderr && !execError.message.includes(stderr)) {
+      execError.message = `${execError.message}\n${stderr}`
+    }
+    throw execError
+  }
 }
 
 function normalizeProvider(provider: string | undefined): string {
