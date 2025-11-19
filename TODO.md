@@ -1,6 +1,7 @@
 # TODO
 
 実施したタスクは完了後にチェックを入れてください。
+実装を修正したらcommit/pushを実施し、gh cliでGitHub Actionsの動作確認を行ってください。
 
 ## 1. 堅牢性の向上 (Error Handling)
 - [x] `src/azure.ts`のCLI実行処理（`runAzCommand`等）で、コマンド失敗時に標準エラー出力（`stderr`）を捕捉し、エラーメッセージに含めるように修正する。これにより、Azure CLIエラー時のデバッグを容易にする。
