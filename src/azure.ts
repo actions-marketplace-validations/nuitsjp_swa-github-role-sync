@@ -32,6 +32,15 @@ export async function listSwaUsers(
     'json'
   ])
   const users = JSON.parse(stdout) as SwaUser[]
+  core.info(
+    `Azure CLI returned ${users.length} SWA users: ${
+      users.length
+        ? users
+            .map((user) => `${user.userDetails ?? 'unknown'}/${user.provider ?? 'unknown'}`)
+            .join(', ')
+        : 'none'
+    }`
+  )
   const githubUsers = users.filter(
     (user): user is SwaUser & { userDetails: string } =>
       Boolean(user.userDetails?.trim()) &&

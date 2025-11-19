@@ -3,6 +3,7 @@ import { promisify } from 'node:util'
 
 const execFileMock = jest.fn()
 const coreDebugMock = jest.fn()
+const coreInfoMock = jest.fn()
 
 execFileMock[promisify.custom] = (...args: unknown[]) =>
   new Promise((resolve, reject) => {
@@ -35,13 +36,17 @@ async function loadAzure() {
   jest.unstable_mockModule('node:child_process', () => ({
     execFile: execFileMock
   }))
-  jest.unstable_mockModule('@actions/core', () => ({ debug: coreDebugMock }))
+  jest.unstable_mockModule('@actions/core', () => ({
+    debug: coreDebugMock,
+    info: coreInfoMock
+  }))
   return import('../src/azure.js')
 }
 
 beforeEach(() => {
   execFileMock.mockReset()
   coreDebugMock.mockReset()
+  coreInfoMock.mockReset()
 })
 
 describe('azure helpers', () => {
