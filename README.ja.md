@@ -4,6 +4,9 @@
 [![Sync SWA roles](https://github.com/nuitsjp/swa-github-role-sync/actions/workflows/sync-swa-roles.yml/badge.svg)](https://github.com/nuitsjp/swa-github-role-sync/actions/workflows/sync-swa-roles.yml)
 [![Deploy site](https://github.com/nuitsjp/swa-github-role-sync/actions/workflows/deploy-site.yml/badge.svg)](https://github.com/nuitsjp/swa-github-role-sync/actions/workflows/deploy-site.yml)
 [![Release](https://github.com/nuitsjp/swa-github-role-sync/actions/workflows/release.yml/badge.svg)](https://github.com/nuitsjp/swa-github-role-sync/actions/workflows/release.yml)
+[![npm version](https://img.shields.io/github/package-json/v/nuitsjp/swa-github-role-sync?label=npm%20version)](package.json)
+[![Coverage](https://raw.githubusercontent.com/nuitsjp/swa-github-role-sync/main/badges/coverage.svg)](coverage/index.html)
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot)](https://github.com/nuitsjp/swa-github-role-sync/network/updates)
 
 Azure Static Web Apps (SWA)のユーザー/ロールを、対象GitHubリポジトリの`admin` /
 `write`権限ユーザーと同期し、招待リンクをまとめたDiscussionを自動作成する再利用可能なJavaScript
