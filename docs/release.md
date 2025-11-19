@@ -50,6 +50,16 @@ gh workflow run release.yml -f version=1.2.3
 The command above mirrors the UI run: it creates/pushes `v1.2.3`, refreshes `v1`,
 and publishes the GitHub Release with automatically generated notes.
 
+### Pre-release support
+
+If the provided version contains a hyphen (for example `1.2.3-beta.1`), the workflow:
+
+- Marks the GitHub Release as a prerelease (`gh release create ... --prerelease`).
+- Skips updating the floating `v1` tag so production consumers stay on the latest
+  stable tag.
+
+このモードは、実運用に影響を与えずにリリースワークフローを検証したい場合に利用できます。
+
 ## Release notes and GitHub Releases
 
 - `gh release create v1.2.3 --generate-notes` leverages GitHubの自動リリースノート機能で、前回

@@ -41,6 +41,11 @@ jobs:
             echo "version=$version" >> "$GITHUB_OUTPUT"
             echo "tag=$tag" >> "$GITHUB_OUTPUT"
             echo "create_tag=false" >> "$GITHUB_OUTPUT"
+            if [[ $version == *-* ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             input="${{ github.event.inputs.version }}"
             input=${input#v}
@@ -60,6 +65,11 @@ jobs:
             echo "version=$input" >> "$GITHUB_OUTPUT"
             echo "tag=$tag" >> "$GITHUB_OUTPUT"
             echo "create_tag=true" >> "$GITHUB_OUTPUT"
+            if [[ $input == *-* ]]; then
+              echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - name: Create release tag
@@ -72,6 +82,7 @@ jobs:
         run: git push origin "${{ steps.meta.outputs.tag }}"
 
       - name: Update floating tag
+        if: steps.meta.outputs.is_prerelease != 'true'
         run: |
           git tag -f v1 "${{ steps.meta.outputs.tag }}"
           git push origin v1 --force
@@ -81,8 +92,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${{ steps.meta.outputs.tag }}"
+          is_prerelease="${{ steps.meta.outputs.is_prerelease }}"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists. Skipping creation."
             exit 0
           fi
-          gh release create "$tag" --generate-notes --latest --title "Release $tag"
+          flags=(--generate-notes --title "Release $tag")
+          if [[ "$is_prerelease" == "true" ]]; then
+            flags+=(--prerelease)
+          else
+            flags+=(--latest)
+          fi
+          gh release create "$tag" "${flags[@]}"

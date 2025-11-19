@@ -102,3 +102,5 @@ See `docs/design.md` for the detailed design.
   追加のMarkdownファイルは不要です。
 - リリースワークフローはGitHub UI(`workflow_dispatch`で`version`入力)と`push`の`v*`タグ
   トリガーの両方に対応し、手動/CLIのどちらからでも同じ処理を再現できます。
+- `1.2.3-beta.1`のようなハイフン付きバージョンを指定した場合はpre-release扱いとなり、
+  GitHub Releaseがプレリリース化され、`v1`タグ更新はスキップされます（動作検証時に便利）。
