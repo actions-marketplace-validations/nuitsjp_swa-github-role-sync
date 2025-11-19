@@ -170,74 +170,82 @@ export async function run(): Promise<void> {
       status: 'success'
     })
 
-    const templateValues = {
-      swaName: inputs.swaName,
-      repo: repoFullName,
-      date: today(),
-      summaryMarkdown: syncSummaryMarkdown
-    }
+    const hasRoleChanges =
+      added.length > 0 || updated.length > 0 || removed.length > 0
 
-    const missingTemplateKeys = new Set<string>()
-    const onMissingKey = (key: string): void => {
-      missingTemplateKeys.add(key)
-    }
-
-    const discussionTitle = fillTemplate(
-      inputs.discussionTitleTemplate,
-      templateValues,
-      { onMissingKey }
-    )
-    const discussionBodyTemplate = inputs.discussionBodyTemplate
-    const discussionBody = fillTemplate(
-      discussionBodyTemplate,
-      templateValues,
-      {
-        onMissingKey
+    if (!hasRoleChanges) {
+      summaryMarkdown = syncSummaryMarkdown
+      core.info('No SWA role changes detected; skipping discussion creation.')
+    } else {
+      const templateValues = {
+        swaName: inputs.swaName,
+        repo: repoFullName,
+        date: today(),
+        summaryMarkdown: syncSummaryMarkdown
       }
-    )
 
-    if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
-      core.warning(
-        'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
+      const missingTemplateKeys = new Set<string>()
+      const onMissingKey = (key: string): void => {
+        missingTemplateKeys.add(key)
+      }
+
+      const discussionTitle = fillTemplate(
+        inputs.discussionTitleTemplate,
+        templateValues,
+        { onMissingKey }
       )
-    }
-
-    if (missingTemplateKeys.size) {
-      core.warning(
-        `Unknown template placeholders with no value: ${[
-          ...missingTemplateKeys
-        ].join(', ')}`
+      const discussionBodyTemplate = inputs.discussionBodyTemplate
+      const discussionBody = fillTemplate(
+        discussionBodyTemplate,
+        templateValues,
+        {
+          onMissingKey
+        }
       )
-    }
 
-    try {
-      discussionUrl = await createDiscussion(
-        inputs.githubToken,
-        owner,
-        repo,
-        inputs.discussionCategoryName,
-        discussionTitle,
-        discussionBody,
-        categoryIds
-      )
-      core.info(`Created Discussion: ${discussionUrl}`)
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Unknown error creating discussion'
-      throw new Error(`Failed to create Discussion: ${message}`)
-    }
+      if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
+        core.warning(
+          'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
+        )
+      }
 
-    summaryMarkdown = buildSummaryMarkdown({
-      repo: repoFullName,
-      swaName: inputs.swaName,
-      added,
-      updated,
-      removed,
-      discussionUrl,
-      status: 'success'
-    })
+      if (missingTemplateKeys.size) {
+        core.warning(
+          `Unknown template placeholders with no value: ${[
+            ...missingTemplateKeys
+          ].join(', ')}`
+        )
+      }
+
+      try {
+        discussionUrl = await createDiscussion(
+          inputs.githubToken,
+          owner,
+          repo,
+          inputs.discussionCategoryName,
+          discussionTitle,
+          discussionBody,
+          categoryIds
+        )
+        core.info(`Created Discussion: ${discussionUrl}`)
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unknown error creating discussion'
+        throw new Error(`Failed to create Discussion: ${message}`)
+      }
+
+      summaryMarkdown = buildSummaryMarkdown({
+        repo: repoFullName,
+        swaName: inputs.swaName,
+        added,
+        updated,
+        removed,
+        discussionUrl,
+        status: 'success'
+      })
+    }
 
     core.setOutput('added-count', added.length)
     core.setOutput('updated-count', updated.length)

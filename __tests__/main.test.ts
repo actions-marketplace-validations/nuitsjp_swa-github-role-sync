@@ -249,8 +249,11 @@ describe('run', () => {
     inputs.set('role-for-admin', '')
     inputs.set('role-for-write', '')
 
-    listEligibleCollaboratorsMock.mockResolvedValue([])
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' }
+    ])
     listSwaUsersMock.mockResolvedValue([])
+    inviteUserMock.mockResolvedValue('https://invite/alice')
     createDiscussionMock.mockResolvedValue(
       'https://github.com/owner/repo/discussions/999'
     )
@@ -259,7 +262,13 @@ describe('run', () => {
     await run()
 
     expect(getSwaDefaultHostnameMock).not.toHaveBeenCalled()
-    expect(inviteUserMock).not.toHaveBeenCalled()
+    expect(inviteUserMock).toHaveBeenCalledWith(
+      'my-swa',
+      'my-rg',
+      'provided.example.net',
+      'alice',
+      'github-admin'
+    )
     expect(updateUserRolesMock).not.toHaveBeenCalled()
     expect(clearUserRolesMock).not.toHaveBeenCalled()
     expect(createDiscussionMock).toHaveBeenCalledWith(
@@ -274,7 +283,7 @@ describe('run', () => {
     expect(warningMock).toHaveBeenCalledWith(
       'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
     )
-    expect(setOutputMock).toHaveBeenCalledWith('added-count', 0)
+    expect(setOutputMock).toHaveBeenCalledWith('added-count', 1)
     expect(setOutputMock).toHaveBeenCalledWith('updated-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith('removed-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith(
@@ -283,14 +292,47 @@ describe('run', () => {
     )
   })
 
+  it('skips discussion creation when no role changes are needed', async () => {
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' },
+      { login: 'bob', role: 'write' }
+    ])
+    listSwaUsersMock.mockResolvedValue([
+      { userDetails: 'alice', roles: 'github-admin', provider: 'GitHub' },
+      { userDetails: 'bob', roles: 'github-writer', provider: 'GitHub' }
+    ])
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(inviteUserMock).not.toHaveBeenCalled()
+    expect(updateUserRolesMock).not.toHaveBeenCalled()
+    expect(clearUserRolesMock).not.toHaveBeenCalled()
+    expect(createDiscussionMock).not.toHaveBeenCalled()
+    expect(infoMock).toHaveBeenCalledWith(
+      'No SWA role changes detected; skipping discussion creation.'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith('added-count', 0)
+    expect(setOutputMock).toHaveBeenCalledWith('updated-count', 0)
+    expect(setOutputMock).toHaveBeenCalledWith('removed-count', 0)
+    expect(setOutputMock).toHaveBeenCalledWith('discussion-url', '')
+    const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
+    expect(summaryMarkdown).toContain('Status: success')
+    expect(summaryMarkdown).toContain('Added: 0')
+  })
+
   it('logs missing template placeholders', async () => {
     inputs.set(
       'discussion-body-template',
       'Body with {unknown} {summaryMarkdown}'
     )
 
-    listEligibleCollaboratorsMock.mockResolvedValue([])
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' }
+    ])
     listSwaUsersMock.mockResolvedValue([])
+    inviteUserMock.mockResolvedValue('https://invite/alice')
     createDiscussionMock.mockResolvedValue(
       'https://github.com/owner/repo/discussions/999'
     )

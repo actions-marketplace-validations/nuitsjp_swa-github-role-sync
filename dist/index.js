@@ -32498,48 +32498,55 @@ async function run() {
             removed,
             status: 'success'
         });
-        const templateValues = {
-            swaName: inputs.swaName,
-            repo: repoFullName,
-            date: today(),
-            summaryMarkdown: syncSummaryMarkdown
-        };
-        const missingTemplateKeys = new Set();
-        const onMissingKey = (key) => {
-            missingTemplateKeys.add(key);
-        };
-        const discussionTitle = fillTemplate(inputs.discussionTitleTemplate, templateValues, { onMissingKey });
-        const discussionBodyTemplate = inputs.discussionBodyTemplate;
-        const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
-            onMissingKey
-        });
-        if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
-            coreExports.warning('discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.');
+        const hasRoleChanges = added.length > 0 || updated.length > 0 || removed.length > 0;
+        if (!hasRoleChanges) {
+            summaryMarkdown = syncSummaryMarkdown;
+            coreExports.info('No SWA role changes detected; skipping discussion creation.');
         }
-        if (missingTemplateKeys.size) {
-            coreExports.warning(`Unknown template placeholders with no value: ${[
-                ...missingTemplateKeys
-            ].join(', ')}`);
+        else {
+            const templateValues = {
+                swaName: inputs.swaName,
+                repo: repoFullName,
+                date: today(),
+                summaryMarkdown: syncSummaryMarkdown
+            };
+            const missingTemplateKeys = new Set();
+            const onMissingKey = (key) => {
+                missingTemplateKeys.add(key);
+            };
+            const discussionTitle = fillTemplate(inputs.discussionTitleTemplate, templateValues, { onMissingKey });
+            const discussionBodyTemplate = inputs.discussionBodyTemplate;
+            const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
+                onMissingKey
+            });
+            if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
+                coreExports.warning('discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.');
+            }
+            if (missingTemplateKeys.size) {
+                coreExports.warning(`Unknown template placeholders with no value: ${[
+                    ...missingTemplateKeys
+                ].join(', ')}`);
+            }
+            try {
+                discussionUrl = await createDiscussion(inputs.githubToken, owner, repo, inputs.discussionCategoryName, discussionTitle, discussionBody, categoryIds);
+                coreExports.info(`Created Discussion: ${discussionUrl}`);
+            }
+            catch (error) {
+                const message = error instanceof Error
+                    ? error.message
+                    : 'Unknown error creating discussion';
+                throw new Error(`Failed to create Discussion: ${message}`);
+            }
+            summaryMarkdown = buildSummaryMarkdown({
+                repo: repoFullName,
+                swaName: inputs.swaName,
+                added,
+                updated,
+                removed,
+                discussionUrl,
+                status: 'success'
+            });
         }
-        try {
-            discussionUrl = await createDiscussion(inputs.githubToken, owner, repo, inputs.discussionCategoryName, discussionTitle, discussionBody, categoryIds);
-            coreExports.info(`Created Discussion: ${discussionUrl}`);
-        }
-        catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : 'Unknown error creating discussion';
-            throw new Error(`Failed to create Discussion: ${message}`);
-        }
-        summaryMarkdown = buildSummaryMarkdown({
-            repo: repoFullName,
-            swaName: inputs.swaName,
-            added,
-            updated,
-            removed,
-            discussionUrl,
-            status: 'success'
-        });
         coreExports.setOutput('added-count', added.length);
         coreExports.setOutput('updated-count', updated.length);
         coreExports.setOutput('removed-count', removed.length);
