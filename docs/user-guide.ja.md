@@ -1,9 +1,9 @@
-# User Guide (Japanese)
+# User Guide（Japanese）
 
 ## Purpose
 
 このドキュメントはAzure Static Web
-Apps(SWA)の運用担当者やGitHubリポジトリ管理者が`swa-github-role-sync`
+Apps（SWA）の運用担当者やGitHubリポジトリ管理者が`swa-github-role-sync`
 Actionを利用してアクセス権を自動同期し、招待リンクを利用者へ安全に展開するための具体的な手順とベストプラクティスをまとめたものです。README.ja.mdでは全体像を説明していますが、本書は「実際にどう使えばよいか」にフォーカスしています。
 
 ## Audience
@@ -35,10 +35,10 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 ### Azure
 
 - 対象のSWAがデプロイ済みでGitHubプロバイダーによる認証が有効。
-- `azure/login@v2`を使ったOIDCフェデレーション設定(サービスプリンシパル、Client
-  ID/Tenant ID/Subscription ID)が完了。
+- `azure/login@v2`を使ったOIDCフェデレーション設定（サービスプリンシパル、Client
+  ID/Tenant ID/Subscription ID）が完了。
 - workflowランナーで`az staticwebapp users ...`コマンドを実行するためのAzure
-  CLIがインストール済み(ホステッドrunnerなら既定で利用可能)。
+  CLIがインストール済み（ホステッドrunnerなら既定で利用可能）。
 - SWA上で`role-prefix`に一致するカスタムロール（デフォルトは`github-admin`,
   `github-writer`など`github-`で始まるロール）が定義されているか、これから作成する計画がある。
 
@@ -46,7 +46,7 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 
 | Input                               | 説明                                                                          | 推奨値                                                        |
 | ----------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                    | `secrets.GITHUB_TOKEN`(デフォルト)またはリモートrepo対象のPAT |
+| `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                    | `secrets.GITHUB_TOKEN`（デフォルト）またはリモートrepo対象のPAT |
 | `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                  | 省略でカレントrepoを使用                                      |
 | `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                               | Azureポータルの正確な名称                                     |
 | `swa-domain`                        | 招待リンクのドメイン。                                                        | カスタムドメイン運用時に必須、無ければ省略                    |
@@ -57,7 +57,7 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 
 ## Step-by-Step Setup
 
-以下ではAzureリソース準備からworkflow公開までを順に説明します。既に完了している工程はスキップして構いません。
+以下ではAzureリソース準備からworkflow公開までを順に説明します。すでに完了している工程はスキップして構いません。
 
 ### 1. Azure CLIで基盤を用意する
 
@@ -81,7 +81,7 @@ az account show --query "{id:id, tenantId:tenantId}" -o json
 
 ```bash
 az group create \
-  --name rg-repository-name-prod \
+  --name rg-swa-github-role-sync-prod \
   --location japaneast
 ```
 
@@ -89,10 +89,10 @@ az group create \
 
 ```json
 {
-  "id": "/subscriptions/3b8a5c2d-1234-5678-9abc-def012345678/resourceGroups/rg-repository-name-prod",
+  "id": "/subscriptions/3b8a5c2d-1234-5678-9abc-def012345678/resourceGroups/rg-swa-github-role-sync-prod",
   "location": "japaneast",
   "managedBy": null,
-  "name": "rg-repository-name-prod",
+  "name": "rg-swa-github-role-sync-prod",
   "properties": {
     "provisioningState": "Succeeded"
   },
@@ -107,9 +107,9 @@ az group create \
 
 ```bash
 az ad sp create-for-rbac \
-  --name "sp-repository-name-prod" \
+  --name "sp-swa-github-role-sync-prod" \
   --role "Contributor" \
-  --scopes "/subscriptions/3b8a5c2d-1234-5678-9abc-def012345678/resourceGroups/rg-repository-name-prod"
+  --scopes "/subscriptions/3b8a5c2d-1234-5678-9abc-def012345678/resourceGroups/rg-swa-github-role-sync-prod"
 ```
 
 出力例（`appId`, `tenant`, `password`を控える）:
@@ -117,7 +117,7 @@ az ad sp create-for-rbac \
 ```json
 {
   "appId": "11111111-2222-3333-4444-555555555555",
-  "displayName": "sp-repository-name-prod",
+  "displayName": "sp-swa-github-role-sync-prod",
   "password": "xyz1234.-generated-password",
   "tenant": "0f12ab34-5678-90ab-cdef-1234567890ab"
 }
@@ -166,6 +166,26 @@ GitHub側で`Settings → Secrets and variables → Actions`を開き、Step
 
 `github-token`は`GITHUB_TOKEN`を使う場合は追加不要です。`target-repo`に他リポジトリを指定する際はアクセス可能なPATを`GH_REPO_TOKEN`などで登録し、`github-token`に設定してください。
 
+#### 2.1 GitHub CLIでSecretsを登録する例
+
+CLIから設定する場合は`gh secret set`を利用します。
+
+```bash
+gh secret set AZURE_CLIENT_ID \
+  --repo nuitsjp/swa-github-role-sync \
+  --body "11111111-2222-3333-4444-555555555555"
+
+gh secret set AZURE_TENANT_ID \
+  --repo nuitsjp/swa-github-role-sync \
+  --body "0f12ab34-5678-90ab-cdef-1234567890ab"
+
+gh secret set AZURE_SUBSCRIPTION_ID \
+  --repo nuitsjp/swa-github-role-sync \
+  --body "3b8a5c2d-1234-5678-9abc-def012345678"
+```
+
+Organization全体で共有したい場合は`--org <org> --app actions`を指定します。`gh auth login`でGitHub CLIにログイン済みであることを事前に確認してください。
+
 ### 3. Discussionsカテゴリの準備
 
 `Settings → General → Discussions → Manage categories`で同期結果を掲示するカテゴリを作成し、`discussion-category-name`に指定する名称を控えます。通知用途に合わせて公開/限定カテゴリを選択してください。
@@ -174,7 +194,7 @@ GitHub側で`Settings → Secrets and variables → Actions`を開き、Step
 
 READMEのQuick
 Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step
-2で登録したSecretsを参照するように設定します。複数SWAを同期する場合はworkflowを複数用意して`with`パラメータを切り替えます。
+2で登録したSecretsを参照するように設定します。複数SWAを同期する場合はworkflowを複数用意して`with`パラメーターを切り替えます。
 
 ### 5. テスト実行
 
@@ -194,7 +214,7 @@ Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step
 
 ## Discussion Template Tips
 
-- タイトルに`{date}`を入れると実行日がISO形式(YYYY-MM-DD)で付与され、履歴を追跡しやすくなります。
+- タイトルに`{date}`を入れると実行日がISO形式（YYYY-MM-DD）で付与され、履歴を追跡しやすくなります。
 - 本文テンプレート内でカスタムセクションを設けたい場合は、`{summaryMarkdown}`の上下に自由に案内文を追加してください。
 - `{summaryMarkdown}`を削除した場合は`GITHUB_STEP_SUMMARY`の出力だけで状況を把握することになるため、Discussions閲覧者だけで完結したい場合は必ず残してください。
 
@@ -203,10 +223,10 @@ Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step
 | 事象                                         | 原因と対処                                                                                                                                                                      |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Discussion category "..." not found`        | 指定カテゴリ名が一致していないかDiscussions機能が無効。SettingsでDiscussionsを有効化して正しい名前を設定する。                                                                  |
-| `Failed to retrieve invite URL`              | `swa-domain`に存在しないドメインを指定したか、`azure/login`ステップが失敗して`az`権限が無い。ログで`azure/login`成功を確認し、必要なら`az version`を追加してCLIの健全性を検証。 |
-| `Plan -> add:0 update:0 remove:0`            | 差分が無い通常動作。GitHub側で権限を変更してから再実行する。                                                                                                                    |
+| `Failed to retrieve invite URL`              | `swa-domain`に存在しないドメインを指定したか、`azure/login`ステップが失敗して`az`権限がない。ログで`azure/login`成功を確認し、必要なら`az version`を追加してCLIの健全性を検証。 |
+| `Plan -> add:0 update:0 remove:0`            | 差分がない通常動作。GitHub側で権限を変更してから再実行する。                                                                                                                    |
 | `403 Resource not accessible by integration` | `github-token`のpermissions不足。workflowの`permissions`ブロックを確認し、Discussions書き込みを許可する。また`target-repo`が異なる場合PATを使用する。                           |
-| `Unauthorized`(Azure CLI)                    | OIDCフェデレーション設定が正しくない。サービスプリンシパルにStatic Web Appsのリソースアクセス権があるか再確認する。                                                             |
+| `Unauthorized`（Azure CLI）                  | OIDCフェデレーション設定が正しくない。サービスプリンシパルにStatic Web Appsのリソースアクセス権があるか再確認する。                                                             |
 
 ## FAQ
 
@@ -225,5 +245,5 @@ Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step
 ## Support & Next Steps
 
 - 細かな挙動変更やテンプレート改善の要望はGitHub Issuesで受け付けています。
-- ロールマッピングや差分アルゴリズムの仕組みに興味がある場合は`docs/architecture.ja.md`(今後公開)を参照してください。
-- ローカル検証や開発プロセスを把握したい場合は`docs/dev-guide.ja.md`(今後公開)を参照予定です。
+- ロールマッピングや差分アルゴリズムの仕組みに興味がある場合は`docs/architecture.ja.md`（今後公開）を参照してください。
+- ローカル検証や開発プロセスを把握したい場合は`docs/dev-guide.ja.md`（今後公開）を参照予定です。

@@ -12,5 +12,13 @@
   "github.copilot.chat.pullRequestDescriptionGeneration.instructions": [
     { "text": "Always include a list of key changes." }
   ],
-  "cSpell.words": ["Autobuild", "Rollup", "stapp", "staticwebapp", "wada"]
+  "cSpell.words": [
+    "Autobuild",
+    "japaneast",
+    "nuitsjp",
+    "Rollup",
+    "stapp",
+    "staticwebapp",
+    "wada"
+  ]
 }

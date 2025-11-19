@@ -8,7 +8,7 @@
 [![Coverage](https://raw.githubusercontent.com/nuitsjp/swa-github-role-sync/main/badges/coverage.svg)](coverage/index.html)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot)](https://github.com/nuitsjp/swa-github-role-sync/network/updates)
 
-Azure Static Web Apps (SWA)のユーザー/ロールを、対象GitHubリポジトリの`admin` /
+Azure Static Web Apps（SWA）のユーザー/ロールを、対象GitHubリポジトリの`admin` /
 `write`権限ユーザーと同期し、招待リンクをまとめたDiscussionを自動作成する再利用可能なJavaScript
 Actionです。SWAへのアクセス管理を「GitHubリポジトリ権限のスナップショット」として扱い、Pull
 Requestやブランチ保護の運用と整合させたいケースを想定しています。
@@ -16,7 +16,7 @@ Requestやブランチ保護の運用と整合させたいケースを想定し�
 ## Overview
 
 このActionは、GitHub REST/GraphQL APIとAzure CLI
-(`az staticwebapp ...`)を組み合わせ、次のフローを1ステップのworkflowで提供します。
+（`az staticwebapp ...`）を組み合わせ、次のフローを1ステップのworkflowで提供します。
 
 1. 対象リポジトリのコラボレーターのうち`admin` / `maintain` /
    `write`相当のユーザーを列挙する。
