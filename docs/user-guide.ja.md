@@ -192,9 +192,62 @@ Organization全体で共有したい場合は`--org <org> --app actions`を指�
 
 ### 4. Workflow作成
 
-READMEのQuick
-Startをベースに`.github/workflows/sync-swa-roles.yml`を作成し、Step
-2で登録したSecretsを参照するように設定します。複数SWAを同期する場合はworkflowを複数用意して`with`パラメーターを切り替えます。
+SWAごとの通知文面を柔軟に変えられるよう、Discussionタイトル/本文テンプレートはリポジトリ変数として管理し、workflow側では`vars`から参照する方法を推奨しています。
+
+#### 4.1 GitHub CLIでテンプレート変数を登録
+
+以下の例では、シンプルなタイトルテンプレートと、`{summaryMarkdown}`でAction生成サマリを埋め込みつつ、リポジトリ名と生成日時を記載する本文テンプレートを登録しています。
+
+```bash
+gh variable set DISCUSSION_TITLE_TEMPLATE \
+  --body 'SWAロール同期（{swaName}／{repo}）{date}'
+
+gh variable set DISCUSSION_BODY_TEMPLATE --body $'## {swaName}ロール同期結果\n{summaryMarkdown}\n\n- 対象リポジトリ：{repo}\n- 実行日時：{date}'
+```
+
+マルチライン文字列を扱うため、本文テンプレートでは`$'...'`構文を利用しています。既存テンプレートを更新したい場合も同じコマンドを再実行するだけで済み、workflowファイルを変更する必要はありません。
+
+#### 4.2 Workflow定義
+
+`.github/workflows/sync-swa-roles.yml`を作成し、Secretsと`vars`を組み合わせてActionへ入力します。
+
+```yaml
+name: Sync SWA roles
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      discussions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sync SWA role assignments
+        uses: nuitsjp/swa-github-role-sync@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          swa-name: my-swa-app
+          swa-resource-group: rg-app-prod
+          discussion-category-name: Announcements
+          discussion-title-template: ${{ vars.DISCUSSION_TITLE_TEMPLATE }}
+          discussion-body-template: ${{ vars.DISCUSSION_BODY_TEMPLATE }}
+```
+
+`vars`を参照することで、テンプレート変更をUIまたはGitHub CLI経由で完結でき、レビュー負荷を抑えたままチームに合わせた告知文面へ差し替えられます。複数SWAを同期する場合はworkflowを複製し、`with`の`{swa-*}`入力や使用するテンプレート変数名を切り替えます。
 
 ### 5. テスト実行
 

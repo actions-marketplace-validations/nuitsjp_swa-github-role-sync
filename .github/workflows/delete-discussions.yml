@@ -1,0 +1,102 @@
+name: Delete All Discussions
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DELETE to confirm you want to remove every Discussion in this repository.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  discussions: write
+
+jobs:
+  purge:
+    name: Purge Discussions
+    runs-on: ubuntu-latest
+    env:
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Confirm destructive action
+        run: |
+          if [ "$CONFIRM" != "DELETE" ]; then
+            echo "Confirmation input must be DELETE (received: $CONFIRM)"
+            exit 1
+          fi
+
+      - name: Delete all Discussions
+        run: |
+          set -euo pipefail
+
+          owner="${GITHUB_REPOSITORY%/*}"
+          name="${GITHUB_REPOSITORY#*/}"
+
+          query=$(cat <<'GRAPHQL'
+          query ($owner: String!, $name: String!, $cursor: String) {
+            repository(owner: $owner, name: $name) {
+              discussions(first: 100, after: $cursor) {
+                nodes {
+                  id
+                  number
+                  title
+                  url
+                }
+                pageInfo {
+                  hasNextPage
+                  endCursor
+                }
+              }
+            }
+          }
+          GRAPHQL
+          )
+
+          mutation=$(cat <<'GRAPHQL'
+          mutation ($id: ID!) {
+            deleteDiscussion(input: {discussionId: $id}) {
+              clientMutationId
+            }
+          }
+          GRAPHQL
+          )
+
+          deleted=0
+          cursor=""
+
+          while :; do
+            if [ -z "$cursor" ]; then
+              response=$(gh api graphql -F owner="$owner" -F name="$name" -f query="$query")
+            else
+              response=$(gh api graphql -F owner="$owner" -F name="$name" -F cursor="$cursor" -f query="$query")
+            fi
+
+            count=$(echo "$response" | jq '.data.repository.discussions.nodes | length')
+
+            if [ "$count" -eq 0 ]; then
+              echo "No Discussions found on this page."
+              break
+            fi
+
+            while IFS= read -r node; do
+              id=$(echo "$node" | jq -r '.id')
+              number=$(echo "$node" | jq -r '.number')
+              title=$(echo "$node" | jq -r '.title')
+              url=$(echo "$node" | jq -r '.url')
+
+              gh api graphql -F id="$id" -f query="$mutation" >/dev/null
+              printf 'Deleted Discussion #%s "%s" (%s)\n' "$number" "$title" "$url"
+              deleted=$((deleted + 1))
+            done < <(echo "$response" | jq -c '.data.repository.discussions.nodes[]')
+
+            page_info=$(echo "$response" | jq '.data.repository.discussions.pageInfo')
+            if [ "$(echo "$page_info" | jq -r '.hasNextPage')" = "true" ]; then
+              cursor=$(echo "$page_info" | jq -r '.endCursor')
+            else
+              break
+            fi
+          done
+
+          echo "Deleted $deleted Discussions in total."
