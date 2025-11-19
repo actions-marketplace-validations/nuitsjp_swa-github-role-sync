@@ -283,7 +283,10 @@ describe('run', () => {
   })
 
   it('logs missing template placeholders', async () => {
-    inputs.set('discussion-body-template', 'Body with {unknown} {summaryMarkdown}')
+    inputs.set(
+      'discussion-body-template',
+      'Body with {unknown} {summaryMarkdown}'
+    )
 
     listEligibleCollaboratorsMock.mockResolvedValue([])
     listSwaUsersMock.mockResolvedValue([])

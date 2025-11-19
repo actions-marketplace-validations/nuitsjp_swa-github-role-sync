@@ -22,8 +22,8 @@ Action の実装は以下を前提とします。
 
 - TypeScript 製の JavaScript Action（Node20 ランタイム）
 - GitHub 公式の `actions/typescript-action` テンプレートをベースにする
-  - コンパイル・テスト・lint・CodeQL に加え、`dist/` 差分チェックを行う CI
-    ワークフロー（Verify）を自前で整備する
+  - コンパイル・テスト・lint・CodeQL に加え、`dist/`
+    差分チェックを行う CI ワークフロー（Verify）を自前で整備する
 - リポジトリは **1 リポジトリ = 1 アクション**（`swa-github-role-sync`）とする
 - Azure への認証は `azure/login` + OIDC によって
   **workflow 側で行い**、Action 本体は Azure クレデンシャルの値を扱わない
@@ -122,7 +122,8 @@ permissions:
 - `action.yml`
 - `src/main.ts`（エントリポイント）
 - `dist/index.js`（ビルド成果物：`ncc` 等でバンドルされた JS）
-- `.github/workflows/ci.yml`（format / lint / test / bundle / dist 差分 / npm audit）
+- `.github/workflows/ci.yml`（format / lint / test / bundle / dist 差分 / npm
+  audit）
 - `.github/workflows/codeql-analysis.yml` など
 
 ---

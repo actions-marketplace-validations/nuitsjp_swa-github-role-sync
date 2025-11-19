@@ -163,9 +163,13 @@ export async function run(): Promise<void> {
       { onMissingKey }
     )
     const discussionBodyTemplate = inputs.discussionBodyTemplate
-    const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
-      onMissingKey
-    })
+    const discussionBody = fillTemplate(
+      discussionBodyTemplate,
+      templateValues,
+      {
+        onMissingKey
+      }
+    )
 
     if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
       core.warning(
