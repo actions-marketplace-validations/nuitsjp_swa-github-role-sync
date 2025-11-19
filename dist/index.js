@@ -32351,14 +32351,21 @@ function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite) {
 function fillTemplate(template, values) {
     return template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? '');
 }
-function buildSummaryMarkdown({ repo, swaName, added, updated, removed }) {
+function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussionUrl, status = 'success', failureMessage }) {
     const lines = [
+        `- Status: ${status}`,
         `- Repository: ${repo}`,
         `- Static Web App: ${swaName}`,
         `- Added: ${added.length}`,
         `- Updated: ${updated.length}`,
         `- Removed: ${removed.length}`
     ];
+    if (discussionUrl) {
+        lines.push(`- Discussion: ${discussionUrl}`);
+    }
+    if (status === 'failure' && failureMessage) {
+        lines.push(`- Error: ${failureMessage}`);
+    }
     const sections = [];
     if (added.length) {
         sections.push([
@@ -32402,10 +32409,17 @@ function today() {
     return new Date().toISOString().split('T')[0];
 }
 async function run() {
+    let inputs;
+    let repoFullName = '';
+    let summaryMarkdown = '';
+    let discussionUrl = '';
+    const added = [];
+    const updated = [];
+    const removed = [];
     try {
-        const inputs = getInputs();
+        inputs = getInputs();
         const { owner, repo } = parseTargetRepo(inputs.targetRepo);
-        const repoFullName = `${owner}/${repo}`;
+        repoFullName = `${owner}/${repo}`;
         const swaDomain = inputs.swaDomain ||
             (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup));
         coreExports.info(`Using SWA domain: ${swaDomain}`);
@@ -32415,9 +32429,6 @@ async function run() {
         const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup);
         const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite);
         coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);
-        const added = [];
-        const updated = [];
-        const removed = [];
         for (const add of plan.toAdd) {
             const inviteUrl = await inviteUser(inputs.swaName, inputs.swaResourceGroup, swaDomain, add.login, add.role);
             added.push({ login: add.login, role: add.role, inviteUrl });
@@ -32433,22 +32444,22 @@ async function run() {
             removed.push({ login: removal.login });
             coreExports.info(`Removed roles from ${removal.login}`);
         }
-        const summaryMarkdown = buildSummaryMarkdown({
+        const syncSummaryMarkdown = buildSummaryMarkdown({
             repo: repoFullName,
             swaName: inputs.swaName,
             added,
             updated,
-            removed
+            removed,
+            status: 'success'
         });
         const templateValues = {
             swaName: inputs.swaName,
             repo: repoFullName,
             date: today(),
-            summaryMarkdown
+            summaryMarkdown: syncSummaryMarkdown
         };
         const discussionTitle = fillTemplate(inputs.discussionTitleTemplate, templateValues);
         const discussionBody = fillTemplate(inputs.discussionBodyTemplate, templateValues);
-        let discussionUrl = '';
         try {
             discussionUrl = await createDiscussion(inputs.githubToken, owner, repo, inputs.discussionCategoryName, discussionTitle, discussionBody);
             coreExports.info(`Created Discussion: ${discussionUrl}`);
@@ -32457,12 +32468,17 @@ async function run() {
             const message = error instanceof Error
                 ? error.message
                 : 'Unknown error creating discussion';
-            coreExports.warning(`Failed to create Discussion: ${message}`);
+            throw new Error(`Failed to create Discussion: ${message}`);
         }
-        await coreExports.summary
-            .addHeading('SWA role sync')
-            .addRaw(summaryMarkdown, true)
-            .write();
+        summaryMarkdown = buildSummaryMarkdown({
+            repo: repoFullName,
+            swaName: inputs.swaName,
+            added,
+            updated,
+            removed,
+            discussionUrl,
+            status: 'success'
+        });
         coreExports.setOutput('added-count', added.length);
         coreExports.setOutput('updated-count', updated.length);
         coreExports.setOutput('removed-count', removed.length);
@@ -32470,10 +32486,44 @@ async function run() {
     }
     catch (error) {
         if (error instanceof Error) {
+            coreExports.error(error.message);
+            summaryMarkdown =
+                summaryMarkdown ||
+                    buildSummaryMarkdown({
+                        repo: repoFullName || 'unknown',
+                        swaName: inputs?.swaName ?? 'unknown',
+                        added,
+                        updated,
+                        removed,
+                        discussionUrl,
+                        status: 'failure',
+                        failureMessage: error.message
+                    });
             coreExports.setFailed(error.message);
         }
         else {
+            summaryMarkdown =
+                summaryMarkdown ||
+                    buildSummaryMarkdown({
+                        repo: repoFullName || 'unknown',
+                        swaName: inputs?.swaName ?? 'unknown',
+                        added,
+                        updated,
+                        removed,
+                        discussionUrl,
+                        status: 'failure',
+                        failureMessage: 'Unknown error'
+                    });
+            coreExports.error('Unknown error');
             coreExports.setFailed('Unknown error');
+        }
+    }
+    finally {
+        if (summaryMarkdown) {
+            await coreExports.summary
+                .addHeading('SWA role sync')
+                .addRaw(summaryMarkdown, true)
+                .write();
         }
     }
 }
