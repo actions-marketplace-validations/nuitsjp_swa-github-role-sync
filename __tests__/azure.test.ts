@@ -48,6 +48,10 @@ function mockExecErrorOnce(
   })
 }
 
+function escapeRegExp(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 async function loadAzure() {
   jest.resetModules()
   jest.unstable_mockModule('node:child_process', () => ({
@@ -134,25 +138,27 @@ describe('azure helpers', () => {
   })
 
   it('keeps original error message when stderr output is empty', async () => {
-    expect.assertions(1)
     mockExecErrorOnce('Command failed: az staticwebapp show', '')
 
     const { getSwaDefaultHostname } = await loadAzure()
-    await getSwaDefaultHostname('app', 'rg').catch((error) => {
-      expect(error.message).toBe('Command failed: az staticwebapp show')
+    await expect(getSwaDefaultHostname('app', 'rg')).rejects.toMatchObject({
+      message: 'Command failed: az staticwebapp show'
     })
   })
 
   it('does not duplicate stderr content when already present in message', async () => {
-    expect.assertions(2)
     const stderr = 'AuthorizationFailed: repeating details'
     mockExecErrorOnce(`Command failed: az staticwebapp show\n${stderr}`, stderr)
 
     const { getSwaDefaultHostname } = await loadAzure()
-    await getSwaDefaultHostname('app', 'rg').catch((error) => {
-      const message = error.message
-      expect(message).toContain(stderr)
-      expect(message.split(stderr).length - 1).toBe(1)
+    const escaped = escapeRegExp(stderr)
+    const singleOccurrencePattern = new RegExp(
+      `^(?!.*${escaped}.*${escaped}).*${escaped}.*$`,
+      's'
+    )
+
+    await expect(getSwaDefaultHostname('app', 'rg')).rejects.toMatchObject({
+      message: expect.stringMatching(singleOccurrencePattern)
     })
   })
 
