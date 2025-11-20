@@ -31250,7 +31250,9 @@ function requireGithub () {
 
 var githubExports = requireGithub();
 
+// Jestから差し替えやすいようにexecFileをPromise化した関数を共有で持つ
 const execFileAsync = promisify(execFile);
+// Azure CLIを呼び出す共通ルーチン。stderrの情報を握り潰さないように整形する
 async function runAzCommand(args) {
     try {
         const { stdout } = await execFileAsync('az', args, {
@@ -31267,10 +31269,12 @@ async function runAzCommand(args) {
         throw execError;
     }
 }
+// provider文字列はケースや空白が不定なのでここでそろえて比較する
 function normalizeProvider(provider) {
     return provider ? provider.trim().toLowerCase() : '';
 }
 async function listSwaUsers(name, resourceGroup) {
+    // ユーザー一覧はproviderでフィルタするため、JSON出力を取得して後段で処理する
     const stdout = await runAzCommand([
         'staticwebapp',
         'users',
@@ -31283,11 +31287,13 @@ async function listSwaUsers(name, resourceGroup) {
         'json'
     ]);
     const users = JSON.parse(stdout);
+    // GitHub経由のユーザーのみを対象にする（Azure ADなど他プロバイダーは除外）
     const githubUsers = users.filter((user) => normalizeProvider(user.provider) === 'github');
     coreExports.debug(`Fetched ${githubUsers.length} SWA GitHub users`);
     return githubUsers;
 }
 async function getSwaDefaultHostname(name, resourceGroup) {
+    // 既定ホスト名はtsv形式で1行だけ返るのでtrimして空判定する
     const stdout = await runAzCommand([
         'staticwebapp',
         'show',
@@ -31307,6 +31313,7 @@ async function getSwaDefaultHostname(name, resourceGroup) {
     return domain;
 }
 async function inviteUser(name, resourceGroup, domain, githubUser, roles, expirationHours = 24) {
+    // 招待APIは複数種のキーでURLを返すことがあるので既知の順で引き当てる
     const stdout = await runAzCommand([
         'staticwebapp',
         'users',
@@ -31336,6 +31343,7 @@ async function inviteUser(name, resourceGroup, domain, githubUser, roles, expira
     return url;
 }
 async function updateUserRoles(name, resourceGroup, githubUser, roles) {
+    // updateコマンドはinviteと違い戻り値を使わない
     await runAzCommand([
         'staticwebapp',
         'users',
@@ -31353,6 +31361,7 @@ async function updateUserRoles(name, resourceGroup, githubUser, roles) {
     ]);
 }
 async function clearUserRoles(name, resourceGroup, githubUser) {
+    // 空文字を渡すことでAzure CLI側にロール削除を指示する
     await updateUserRoles(name, resourceGroup, githubUser, '');
 }
 
@@ -32226,6 +32235,7 @@ var graphql2 = withDefaults(request, {
   url: "/graphql"
 });
 
+// Action入力からowner/repo形式を解析し、省略時はWorkflowのコンテキストを使う
 function parseTargetRepo(input, contextRepo = githubExports.context.repo) {
     if (!input) {
         return { owner: contextRepo.owner, repo: contextRepo.repo };
@@ -32236,6 +32246,7 @@ function parseTargetRepo(input, contextRepo = githubExports.context.repo) {
     }
     return { owner, repo };
 }
+// GitHubコラボレーターの権限からSWAに対応するロールを推定する
 function toRole(collaborator) {
     const { login, permissions } = collaborator;
     if (permissions?.admin) {
@@ -32246,6 +32257,7 @@ function toRole(collaborator) {
     }
     return null;
 }
+// GitHub APIから書き込み以上の権限を持つメンバーを集め、同期対象ユーザーへ変換する
 async function listEligibleCollaborators(octokit, owner, repo) {
     const collaborators = await octokit.paginate(octokit.rest.repos.listCollaborators, {
         owner,
@@ -32259,6 +32271,7 @@ async function listEligibleCollaborators(octokit, owner, repo) {
     coreExports.debug(`Eligible collaborators: ${desired.length}`);
     return desired;
 }
+// Discussionの作成にはカテゴリIDとリポジトリIDが必要なのでGraphQLで先に取得する
 async function getDiscussionCategoryId(token, owner, repo, categoryName) {
     const graphqlClient = graphql2.defaults({
         headers: { authorization: `token ${token}` }
@@ -32282,6 +32295,7 @@ async function getDiscussionCategoryId(token, owner, repo, categoryName) {
     }
     return { repositoryId: query.repository.id, categoryId: category.id };
 }
+// Discussionの作成。カテゴリIDが渡されなければ取得してからGraphQLミューテーションを投げる
 async function createDiscussion(token, owner, repo, categoryName, title, body, categoryIds) {
     const graphqlClient = graphql2.defaults({
         headers: { authorization: `token ${token}` }
@@ -32312,10 +32326,13 @@ async function createDiscussion(token, owner, repo, categoryName, title, body, c
     return mutation.createDiscussion.discussion.url;
 }
 
+// Azure Static Web Appsに用いるGitHubロール名は接頭辞を合わせて管理する
 const DEFAULT_ROLE_PREFIX = 'github-';
+// GitHubのログイン名は大小や余分な空白が混在しやすいのでここで統一する
 function normalizeLogin(login) {
     return login.trim().toLowerCase();
 }
+// SWAユーザー情報はuserDetails/displayNameのどちらかしか無いことがあるので順番に確認する
 function resolveSwaLogin(user) {
     if (user.userDetails?.trim()) {
         return normalizeLogin(user.userDetails);
@@ -32325,6 +32342,7 @@ function resolveSwaLogin(user) {
     }
     return undefined;
 }
+// カンマ区切りのロール配列を整形し、比較対象の接頭辞だけ残した文字列にする
 function normalizeRoles(roles, rolePrefix) {
     if (!roles)
         return '';
@@ -32335,6 +32353,7 @@ function normalizeRoles(roles, rolePrefix) {
         .sort()
         .join(',');
 }
+// GitHub側の希望状態とSWA側の現状から、招待・更新・削除の実行計画を組み立てる
 function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite, options) {
     const rolePrefix = options?.rolePrefix ?? DEFAULT_ROLE_PREFIX;
     const desired = new Map();
@@ -32352,6 +32371,7 @@ function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite, opti
     const toAdd = [];
     const toUpdate = [];
     const toRemove = [];
+    // GitHubユーザーを基準に、存在しないなら招待・存在するならロール差分を調べる
     for (const [login, role] of desired.entries()) {
         const current = existing.get(login);
         if (!current) {
@@ -32368,6 +32388,7 @@ function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite, opti
             });
         }
     }
+    // SWA側にだけ残っているユーザーは削除対象とみなす
     for (const [login, user] of existing.entries()) {
         if (!desired.has(login)) {
             toRemove.push({ login, currentRoles: user.roles ?? '' });
@@ -32376,6 +32397,7 @@ function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite, opti
     return { toAdd, toUpdate, toRemove };
 }
 
+// Discussionのテンプレート文字列に{key}形式で値を埋め込み、未定義キーはコールバックで通知する
 function fillTemplate(template, values, options = {}) {
     const { onMissingKey } = options;
     return template.replace(/\{(\w+)\}/g, (_, key) => {
@@ -32385,6 +32407,7 @@ function fillTemplate(template, values, options = {}) {
         return values[key] ?? '';
     });
 }
+// Jobサマリー兼Discussion本文に貼り付けるMarkdownを合成する
 function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussionUrl, status = 'success', failureMessage }) {
     const lines = [
         `- Status: ${status}`,
@@ -32419,7 +32442,9 @@ function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussi
     return [lines.join('\n'), sections.join('\n\n')].filter(Boolean).join('\n\n');
 }
 
+// Azure Static Web Appsのカスタムロールに割り当てられるGitHubユーザー数の上限
 const SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT = 25;
+// カスタムロールを付与するユーザー数がAzureの上限を超えていないかを検証する
 function assertWithinSwaRoleLimit(users) {
     const uniqueLogins = new Set(users
         .map((user) => user.login.trim().toLowerCase())
@@ -32428,6 +32453,7 @@ function assertWithinSwaRoleLimit(users) {
         throw new Error(`SWA custom role assignment limit (${SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT}) exceeded: ${uniqueLogins.size} users require custom roles`);
     }
 }
+// GitHub Actionの入力値をまとめて取得し、デフォルト値を補完する
 function getInputs() {
     return {
         githubToken: coreExports.getInput('github-token', { required: true }),
@@ -32449,9 +32475,11 @@ function getInputs() {
 {summaryMarkdown}`
     };
 }
+// yyyy-mm-ddの簡易な日付表現を作成する（discussionタイトル用）
 function today() {
     return new Date().toISOString().split('T')[0];
 }
+// GitHubとSWAの両方に対してロール同期を行い、結果をDiscussionとJobサマリーに書き出す
 async function run() {
     let inputs;
     let repoFullName = '';
@@ -32461,30 +32489,38 @@ async function run() {
     const updated = [];
     const removed = [];
     try {
+        // 入力値を取得し、同期対象のリポジトリとSWA名などを確定させる
         inputs = getInputs();
         const { owner, repo } = parseTargetRepo(inputs.targetRepo);
         repoFullName = `${owner}/${repo}`;
+        // DiscussionカテゴリのIDはGraphQLミューテーションで必須なため先に引いておく
         const categoryIds = await getDiscussionCategoryId(inputs.githubToken, owner, repo, inputs.discussionCategoryName);
+        // SWAドメインは入力優先、無ければ既定ホスト名を問い合わせる
         const swaDomain = inputs.swaDomain ||
             (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup));
         coreExports.info(`Using SWA domain: ${swaDomain}`);
+        // GitHub側のコラボレーターを集め、同期対象ユーザーの粗いプランを作る準備をする
         const octokit = githubExports.getOctokit(inputs.githubToken);
         const githubUsers = await listEligibleCollaborators(octokit, owner, repo);
         coreExports.info(`Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${repoFullName})`);
         assertWithinSwaRoleLimit(githubUsers);
+        // SWA側のユーザー一覧を取得して差分計算に渡す
         const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup);
         const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite, { rolePrefix: inputs.rolePrefix });
         coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);
+        // 追加対象には招待リンクを発行する
         for (const add of plan.toAdd) {
             const inviteUrl = await inviteUser(inputs.swaName, inputs.swaResourceGroup, swaDomain, add.login, add.role);
             added.push({ login: add.login, role: add.role, inviteUrl });
             coreExports.info(`Invited ${add.login} with role ${add.role}`);
         }
+        // 既存ユーザーのロール差分はupdate APIで上書きする
         for (const update of plan.toUpdate) {
             await updateUserRoles(inputs.swaName, inputs.swaResourceGroup, update.login, update.role);
             updated.push({ login: update.login, role: update.role });
             coreExports.info(`Updated ${update.login} to role ${update.role}`);
         }
+        // 不要になったユーザーのロールはクリアしてアクセスを停止させる
         for (const removal of plan.toRemove) {
             await clearUserRoles(inputs.swaName, inputs.swaResourceGroup, removal.login);
             removed.push({ login: removal.login });
@@ -32498,12 +32534,14 @@ async function run() {
             removed,
             status: 'success'
         });
+        // 差分が無い場合はDiscussionを作らずにサマリーのみ書き出す
         const hasRoleChanges = added.length > 0 || updated.length > 0 || removed.length > 0;
         if (!hasRoleChanges) {
             summaryMarkdown = syncSummaryMarkdown;
             coreExports.info('No SWA role changes detected; skipping discussion creation.');
         }
         else {
+            // Discussionテンプレートに埋め込む値を先に構築しておく
             const templateValues = {
                 swaName: inputs.swaName,
                 repo: repoFullName,
@@ -32519,6 +32557,7 @@ async function run() {
             const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
                 onMissingKey
             });
+            // SummaryをDiscussion本文に載せない設定は意図しているかもしれないので警告のみ
             if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
                 coreExports.warning('discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.');
             }
@@ -32588,6 +32627,7 @@ async function run() {
     }
     finally {
         if (summaryMarkdown) {
+            // GitHub ActionsのJobサマリーに結果を残し、UIから辿れるようにする
             await coreExports.summary
                 .addHeading('SWA role sync')
                 .addRaw(summaryMarkdown, true)
@@ -32597,8 +32637,7 @@ async function run() {
 }
 
 /**
- * The entrypoint for the action. This file simply imports and runs the action's
- * main logic.
+ * GitHub Actionのエントリーポイント。メイン処理を読み込んで実行するだけの薄いファイル。
  */
 /* istanbul ignore next */
 run();
