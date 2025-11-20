@@ -51,6 +51,7 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 | `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                               | Azureポータルの正確な名称                                       |
 | `swa-domain`                        | 招待リンクのドメイン。                                                        | カスタムドメイン運用時に必須、無ければ省略                      |
 | `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                 | `github-admin`, `github-writer`                                 |
+| `role-prefix`                       | 同期対象とするSWAロールのプレフィックス。                                     | `github-`                                                       |
 | `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                              | `Announcements`など利用者に通知が届くカテゴリ                   |
 | `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                 | `SWA access invites for {swaName} ({repo}) - {date}`            |
 | `discussion-body-template`          | Discussion本文。`{summaryMarkdown}`を含めるとAction生成サマリが埋め込まれる。 | デフォルトテンプレートを推奨                                    |
@@ -296,6 +297,9 @@ CLI経由で完結でき、レビュー負荷を抑えたままチームに合�
 
 **Q4. 招待リンクの有効期限は変更できますか?**  
 `inviteUser`内部で`--invitation-expiration-in-hours 24`を指定しています。ソースコードを変更して再パッケージすれば期限調整も可能ですが、一般的には24時間以内が安全です。
+
+**Q5. 同期できるユーザー数に上限はありますか？**  
+はい。Azure Static Web Appsの仕様により、カスタムロールを割り当て可能なユーザーはFree/Standardプランともに25名までです。本Actionは同期対象が25名を超えた場合、安全のためエラーで処理を中断します。
 
 ## Support & Next Steps
 
