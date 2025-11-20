@@ -151,8 +151,8 @@ npm run local-action
 ## Additional Documentation
 
 - ユーザー向け詳細ガイド: `docs/user-guide.ja.md`
-- 開発・テスト・リリース手順: `docs/dev-guide.ja.md`（作成中）
-- アーキテクチャと設計メモ: `docs/architecture.ja.md`（作成中）
+- 開発・テスト・リリース手順: `docs/dev-guide.ja.md`
+- アーキテクチャと設計メモ: `docs/architecture.ja.md`
 
 README英語版と各種詳細ドキュメントは日本語版レビュー完了後に追加します。
 
