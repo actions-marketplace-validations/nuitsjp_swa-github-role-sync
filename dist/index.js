@@ -28221,7 +28221,7 @@ function fetchWrapper$1(requestOptions) {
     }
     if (status >= 400) {
       const data = await getResponseData$1(response);
-      const error = new RequestError$1(toErrorMessage$1(data), status, {
+      const error = new RequestError$1(toErrorMessage$2(data), status, {
         response: {
           url,
           status,
@@ -28268,7 +28268,7 @@ async function getResponseData$1(response) {
   }
   return getBufferResponse(response);
 }
-function toErrorMessage$1(data) {
+function toErrorMessage$2(data) {
   if (typeof data === "string")
     return data;
   let suffix;
@@ -31273,6 +31273,12 @@ async function runAzCommand(args) {
 function normalizeProvider(provider) {
     return provider ? provider.trim().toLowerCase() : '';
 }
+/**
+ * SWAに登録されているGitHubユーザー一覧を取得する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @returns GitHubプロバイダーのユーザーのみを返す配列。
+ */
 async function listSwaUsers(name, resourceGroup) {
     // ユーザー一覧はproviderでフィルタするため、JSON出力を取得して後段で処理する
     const stdout = await runAzCommand([
@@ -31292,6 +31298,13 @@ async function listSwaUsers(name, resourceGroup) {
     coreExports.debug(`Fetched ${githubUsers.length} SWA GitHub users`);
     return githubUsers;
 }
+/**
+ * SWAの既定ホスト名（*.azurestaticapps.netやカスタムドメイン）を解決する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @returns 既定ホスト名。
+ * @throws 解決できない場合。
+ */
 async function getSwaDefaultHostname(name, resourceGroup) {
     // 既定ホスト名はtsv形式で1行だけ返るのでtrimして空判定する
     const stdout = await runAzCommand([
@@ -31312,6 +31325,16 @@ async function getSwaDefaultHostname(name, resourceGroup) {
     }
     return domain;
 }
+/**
+ * GitHubユーザーをSWAへ招待するためのURLを発行する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @param domain 招待URLに含めるドメイン。
+ * @param githubUser 招待対象のGitHubログイン。
+ * @param roles 付与するロール（カンマ区切り）。
+ * @param expirationHours 招待リンクの有効期限（時間）。省略時は24時間。
+ * @returns 招待URL。
+ */
 async function inviteUser(name, resourceGroup, domain, githubUser, roles, expirationHours = 24) {
     // 招待APIは複数種のキーでURLを返すことがあるので既知の順で引き当てる
     const stdout = await runAzCommand([
@@ -31342,6 +31365,13 @@ async function inviteUser(name, resourceGroup, domain, githubUser, roles, expira
     }
     return url;
 }
+/**
+ * 既存のSWAユーザーに対してロールを更新する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @param githubUser 対象GitHubユーザー。
+ * @param roles 設定するロール（カンマ区切り）。空文字で削除を指示。
+ */
 async function updateUserRoles(name, resourceGroup, githubUser, roles) {
     // updateコマンドはinviteと違い戻り値を使わない
     await runAzCommand([
@@ -31360,6 +31390,12 @@ async function updateUserRoles(name, resourceGroup, githubUser, roles) {
         roles
     ]);
 }
+/**
+ * SWAユーザーからすべてのロールを削除する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @param githubUser 対象GitHubユーザー。
+ */
 async function clearUserRoles(name, resourceGroup, githubUser) {
     // 空文字を渡すことでAzure CLI側にロール削除を指示する
     await updateUserRoles(name, resourceGroup, githubUser, '');
@@ -32051,7 +32087,7 @@ async function fetchWrapper(requestOptions) {
   }
   if (status >= 400) {
     octokitResponse.data = await getResponseData(fetchResponse);
-    throw new RequestError(toErrorMessage(octokitResponse.data), status, {
+    throw new RequestError(toErrorMessage$1(octokitResponse.data), status, {
       response: octokitResponse,
       request: requestOptions
     });
@@ -32082,7 +32118,7 @@ async function getResponseData(response) {
 function isJSONResponse(mimetype) {
   return mimetype.type === "application/json" || mimetype.type === "application/scim+json";
 }
-function toErrorMessage(data) {
+function toErrorMessage$1(data) {
   if (typeof data === "string") {
     return data;
   }
@@ -32236,6 +32272,12 @@ var graphql2 = withDefaults(request, {
 });
 
 // Action入力からowner/repo形式を解析し、省略時はWorkflowのコンテキストを使う
+/**
+ * target-repo入力を解析し、省略時は現在のworkflowコンテキストを採用する。
+ * @param input Action入力`target-repo`の文字列（owner/repo形式）。
+ * @param contextRepo デフォルトのリポジトリ情報。
+ * @returns ownerとrepoの組。
+ */
 function parseTargetRepo(input, contextRepo = githubExports.context.repo) {
     if (!input) {
         return { owner: contextRepo.owner, repo: contextRepo.repo };
@@ -32258,6 +32300,12 @@ function toRole(collaborator) {
     return null;
 }
 // GitHub APIから書き込み以上の権限を持つメンバーを集め、同期対象ユーザーへ変換する
+/**
+ * GitHub APIからwrite/maintain/admin権限を持つユーザーを列挙し、同期用の形へ整形する。
+ * @param octokit Octokitインスタンス。
+ * @param owner リポジトリ所有者。
+ * @param repo リポジトリ名。
+ */
 async function listEligibleCollaborators(octokit, owner, repo) {
     const collaborators = await octokit.paginate(octokit.rest.repos.listCollaborators, {
         owner,
@@ -32272,6 +32320,14 @@ async function listEligibleCollaborators(octokit, owner, repo) {
     return desired;
 }
 // Discussionの作成にはカテゴリIDとリポジトリIDが必要なのでGraphQLで先に取得する
+/**
+ * Discussion作成に必要なリポジトリIDとカテゴリIDをGraphQLで取得する。
+ * @param token GitHubトークン。
+ * @param owner リポジトリ所有者。
+ * @param repo リポジトリ名。
+ * @param categoryName Discussionカテゴリ名。
+ * @returns repositoryIdとcategoryId。
+ */
 async function getDiscussionCategoryId(token, owner, repo, categoryName) {
     const graphqlClient = graphql2.defaults({
         headers: { authorization: `token ${token}` }
@@ -32295,13 +32351,26 @@ async function getDiscussionCategoryId(token, owner, repo, categoryName) {
     }
     return { repositoryId: query.repository.id, categoryId: category.id };
 }
-// Discussionの作成。カテゴリIDが渡されなければ取得してからGraphQLミューテーションを投げる
+// Discussionの作成。カテゴリIDは事前に取得しておき、ここではミューテーションのみ実行する
+/**
+ * 取得済みカテゴリIDを使ってDiscussionを作成する。
+ * @param token GitHubトークン。
+ * @param owner リポジトリ所有者（ログ出力時の整合用）。
+ * @param repo リポジトリ名（ログ出力時の整合用）。
+ * @param categoryName Discussionカテゴリ名（ログ出力時の整合用）。
+ * @param title Discussionタイトル。
+ * @param body Discussion本文。
+ * @param categoryIds 事前取得済みのリポジトリIDとカテゴリID。
+ * @returns 作成されたDiscussionのURL。
+ */
 async function createDiscussion(token, owner, repo, categoryName, title, body, categoryIds) {
+    if (!categoryIds) {
+        throw new Error('categoryIds is required to create a discussion');
+    }
     const graphqlClient = graphql2.defaults({
         headers: { authorization: `token ${token}` }
     });
-    const { repositoryId, categoryId } = categoryIds ??
-        (await getDiscussionCategoryId(token, owner, repo, categoryName));
+    const { repositoryId, categoryId } = categoryIds;
     const mutation = await graphqlClient(`
       mutation (
         $repositoryId: ID!
@@ -32327,6 +32396,7 @@ async function createDiscussion(token, owner, repo, categoryName, title, body, c
 }
 
 // Azure Static Web Appsに用いるGitHubロール名は接頭辞を合わせて管理する
+/** 差分判定に用いるロール名のデフォルト接頭辞。 */
 const DEFAULT_ROLE_PREFIX = 'github-';
 // GitHubのログイン名は大小や余分な空白が混在しやすいのでここで統一する
 function normalizeLogin(login) {
@@ -32354,6 +32424,14 @@ function normalizeRoles(roles, rolePrefix) {
         .join(',');
 }
 // GitHub側の希望状態とSWA側の現状から、招待・更新・削除の実行計画を組み立てる
+/**
+ * GitHubの理想状態とSWAの現状を比較し、招待/更新/削除の差分プランを生成する。
+ * @param githubUsers GitHubの書き込み以上ユーザーと役割。
+ * @param swaUsers SWAに登録済みのユーザー情報。
+ * @param roleForAdmin GitHub admin権限に割り当てるSWAロール。
+ * @param roleForWrite GitHub write/maintain権限に割り当てるSWAロール。
+ * @param options rolePrefixで同期対象ロールの接頭辞を指定可能。
+ */
 function computeSyncPlan(githubUsers, swaUsers, roleForAdmin, roleForWrite, options) {
     const rolePrefix = options?.rolePrefix ?? DEFAULT_ROLE_PREFIX;
     const desired = new Map();
@@ -32445,6 +32523,11 @@ function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussi
 // Azure Static Web Appsのカスタムロールに割り当てられるGitHubユーザー数の上限
 const SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT = 25;
 // カスタムロールを付与するユーザー数がAzureの上限を超えていないかを検証する
+/**
+ * カスタムロール割り当て数がSWAの上限を超えないことを事前にチェックする。
+ * @param users GitHub権限から抽出した同期対象ユーザー。
+ * @throws 上限超過時。
+ */
 function assertWithinSwaRoleLimit(users) {
     const uniqueLogins = new Set(users
         .map((user) => user.login.trim().toLowerCase())
@@ -32453,14 +32536,40 @@ function assertWithinSwaRoleLimit(users) {
         throw new Error(`SWA custom role assignment limit (${SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT}) exceeded: ${uniqueLogins.size} users require custom roles`);
     }
 }
+/**
+ * 招待リンクの有効期限入力を検証し、デフォルト値を補完する。
+ * @param input GitHub Action入力`invitation-expiration-hours`の文字列。
+ * @returns 1〜168時間の整数（指定なしは24）。
+ * @throws 範囲外や数値でない場合。
+ */
+function parseInvitationExpirationHours(input) {
+    const trimmed = input.trim();
+    if (!trimmed) {
+        return 24;
+    }
+    const hours = Number(trimmed);
+    if (!Number.isFinite(hours) ||
+        !Number.isInteger(hours) ||
+        hours < 1 ||
+        hours > 168) {
+        throw new Error('invitation-expiration-hours must be between 1 and 168 hours');
+    }
+    return hours;
+}
 // GitHub Actionの入力値をまとめて取得し、デフォルト値を補完する
+/**
+ * GitHub Action入力を集約し、デフォルト値や検証済みの型を付与する。
+ * @returns SWA同期で利用する各種入力。
+ */
 function getInputs() {
+    const invitationExpirationHours = parseInvitationExpirationHours(coreExports.getInput('invitation-expiration-hours'));
     return {
         githubToken: coreExports.getInput('github-token', { required: true }),
         targetRepo: coreExports.getInput('target-repo'),
         swaName: coreExports.getInput('swa-name', { required: true }),
         swaResourceGroup: coreExports.getInput('swa-resource-group', { required: true }),
         swaDomain: coreExports.getInput('swa-domain'),
+        invitationExpirationHours,
         roleForAdmin: coreExports.getInput('role-for-admin') || 'github-admin',
         roleForWrite: coreExports.getInput('role-for-write') || 'github-writer',
         rolePrefix: coreExports.getInput('role-prefix') || 'github-',
@@ -32476,162 +32585,217 @@ function getInputs() {
     };
 }
 // yyyy-mm-ddの簡易な日付表現を作成する（discussionタイトル用）
+/**
+ * Discussionタイトル向けの簡易日付（YYYY-MM-DD）を返す。
+ */
 function today() {
     return new Date().toISOString().split('T')[0];
 }
-// GitHubとSWAの両方に対してロール同期を行い、結果をDiscussionとJobサマリーに書き出す
-async function run() {
-    let inputs;
-    let repoFullName = '';
-    let summaryMarkdown = '';
-    let discussionUrl = '';
+/**
+ * 例外オブジェクトを文字列に正規化し、非Errorでも原因を見失わないようにする。
+ * @param error catch節で受け取った原因オブジェクト。
+ */
+function toErrorMessage(error) {
+    if (error instanceof Error) {
+        return error.message || 'Unknown error';
+    }
+    const text = String(error);
+    return text || 'Unknown error';
+}
+/**
+ * 既存のサマリーを維持しつつ、失敗時のMarkdownを構築する。
+ * @param state 現在までに構築済みの結果。
+ * @param failureMessage エラーメッセージ。
+ */
+function buildFailureSummary(state, failureMessage) {
+    return (state.summaryMarkdown ||
+        buildSummaryMarkdown({
+            repo: state.repoFullName || 'unknown',
+            swaName: state.swaName || 'unknown',
+            added: state.added,
+            updated: state.updated,
+            removed: state.removed,
+            discussionUrl: state.discussionUrl,
+            status: 'failure',
+            failureMessage
+        }));
+}
+/**
+ * 入力値の検証・リポジトリ情報の解析・DiscussionカテゴリIDやSWAドメインの解決をまとめて行う。
+ * @returns 同期に必要なコンテキスト。
+ */
+async function gatherInputsAndPrepare() {
+    const inputs = getInputs();
+    const { owner, repo } = parseTargetRepo(inputs.targetRepo);
+    const repoFullName = `${owner}/${repo}`;
+    const categoryIds = await getDiscussionCategoryId(inputs.githubToken, owner, repo, inputs.discussionCategoryName);
+    const swaDomain = inputs.swaDomain ||
+        (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup));
+    coreExports.info(`Using SWA domain: ${swaDomain}`);
+    const octokit = githubExports.getOctokit(inputs.githubToken);
+    return {
+        ...inputs,
+        owner,
+        repo,
+        repoFullName,
+        categoryIds,
+        swaDomain,
+        octokit
+    };
+}
+/**
+ * GitHub→SWAの差分同期を実行し、Discussion作成とサマリー生成までを完了させる。
+ * @param context 事前に解決済みの入力・APIクライアント・カテゴリIDなど。
+ * @returns Discussion URLとサマリーMarkdownを含む結果。
+ */
+async function executeSyncPlan(context) {
     const added = [];
     const updated = [];
     const removed = [];
+    const githubUsers = await listEligibleCollaborators(context.octokit, context.owner, context.repo);
+    coreExports.info(`Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${context.repoFullName})`);
+    assertWithinSwaRoleLimit(githubUsers);
+    const swaUsers = await listSwaUsers(context.swaName, context.swaResourceGroup);
+    const plan = computeSyncPlan(githubUsers, swaUsers, context.roleForAdmin, context.roleForWrite, { rolePrefix: context.rolePrefix });
+    coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);
+    for (const add of plan.toAdd) {
+        const inviteUrl = await inviteUser(context.swaName, context.swaResourceGroup, context.swaDomain, add.login, add.role, context.invitationExpirationHours);
+        added.push({ login: add.login, role: add.role, inviteUrl });
+        coreExports.info(`Invited ${add.login} with role ${add.role}`);
+    }
+    for (const update of plan.toUpdate) {
+        await updateUserRoles(context.swaName, context.swaResourceGroup, update.login, update.role);
+        updated.push({ login: update.login, role: update.role });
+        coreExports.info(`Updated ${update.login} to role ${update.role}`);
+    }
+    for (const removal of plan.toRemove) {
+        await clearUserRoles(context.swaName, context.swaResourceGroup, removal.login);
+        removed.push({ login: removal.login });
+        coreExports.info(`Removed roles from ${removal.login}`);
+    }
+    const syncSummaryMarkdown = buildSummaryMarkdown({
+        repo: context.repoFullName,
+        swaName: context.swaName,
+        added,
+        updated,
+        removed,
+        status: 'success'
+    });
+    const hasRoleChanges = added.length > 0 || updated.length > 0 || removed.length > 0;
+    if (!hasRoleChanges) {
+        coreExports.info('No SWA role changes detected; skipping discussion creation.');
+        return {
+            repoFullName: context.repoFullName,
+            swaName: context.swaName,
+            discussionUrl: '',
+            summaryMarkdown: syncSummaryMarkdown,
+            added,
+            updated,
+            removed
+        };
+    }
+    const templateValues = {
+        swaName: context.swaName,
+        repo: context.repoFullName,
+        date: today(),
+        summaryMarkdown: syncSummaryMarkdown
+    };
+    const missingTemplateKeys = new Set();
+    const onMissingKey = (key) => {
+        missingTemplateKeys.add(key);
+    };
+    const discussionTitle = fillTemplate(context.discussionTitleTemplate, templateValues, { onMissingKey });
+    const discussionBodyTemplate = context.discussionBodyTemplate;
+    const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
+        onMissingKey
+    });
+    if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
+        coreExports.warning('discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.');
+    }
+    if (missingTemplateKeys.size) {
+        coreExports.warning(`Unknown template placeholders with no value: ${[
+            ...missingTemplateKeys
+        ].join(', ')}`);
+    }
     try {
-        // 入力値を取得し、同期対象のリポジトリとSWA名などを確定させる
-        inputs = getInputs();
-        const { owner, repo } = parseTargetRepo(inputs.targetRepo);
-        repoFullName = `${owner}/${repo}`;
-        // DiscussionカテゴリのIDはGraphQLミューテーションで必須なため先に引いておく
-        const categoryIds = await getDiscussionCategoryId(inputs.githubToken, owner, repo, inputs.discussionCategoryName);
-        // SWAドメインは入力優先、無ければ既定ホスト名を問い合わせる
-        const swaDomain = inputs.swaDomain ||
-            (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup));
-        coreExports.info(`Using SWA domain: ${swaDomain}`);
-        // GitHub側のコラボレーターを集め、同期対象ユーザーの粗いプランを作る準備をする
-        const octokit = githubExports.getOctokit(inputs.githubToken);
-        const githubUsers = await listEligibleCollaborators(octokit, owner, repo);
-        coreExports.info(`Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${repoFullName})`);
-        assertWithinSwaRoleLimit(githubUsers);
-        // SWA側のユーザー一覧を取得して差分計算に渡す
-        const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup);
-        const plan = computeSyncPlan(githubUsers, swaUsers, inputs.roleForAdmin, inputs.roleForWrite, { rolePrefix: inputs.rolePrefix });
-        coreExports.info(`Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`);
-        // 追加対象には招待リンクを発行する
-        for (const add of plan.toAdd) {
-            const inviteUrl = await inviteUser(inputs.swaName, inputs.swaResourceGroup, swaDomain, add.login, add.role);
-            added.push({ login: add.login, role: add.role, inviteUrl });
-            coreExports.info(`Invited ${add.login} with role ${add.role}`);
-        }
-        // 既存ユーザーのロール差分はupdate APIで上書きする
-        for (const update of plan.toUpdate) {
-            await updateUserRoles(inputs.swaName, inputs.swaResourceGroup, update.login, update.role);
-            updated.push({ login: update.login, role: update.role });
-            coreExports.info(`Updated ${update.login} to role ${update.role}`);
-        }
-        // 不要になったユーザーのロールはクリアしてアクセスを停止させる
-        for (const removal of plan.toRemove) {
-            await clearUserRoles(inputs.swaName, inputs.swaResourceGroup, removal.login);
-            removed.push({ login: removal.login });
-            coreExports.info(`Removed roles from ${removal.login}`);
-        }
-        const syncSummaryMarkdown = buildSummaryMarkdown({
-            repo: repoFullName,
-            swaName: inputs.swaName,
+        const discussionUrl = await createDiscussion(context.githubToken, context.owner, context.repo, context.discussionCategoryName, discussionTitle, discussionBody, context.categoryIds);
+        coreExports.info(`Created Discussion: ${discussionUrl}`);
+        const summaryMarkdown = buildSummaryMarkdown({
+            repo: context.repoFullName,
+            swaName: context.swaName,
             added,
             updated,
             removed,
+            discussionUrl,
             status: 'success'
         });
-        // 差分が無い場合はDiscussionを作らずにサマリーのみ書き出す
-        const hasRoleChanges = added.length > 0 || updated.length > 0 || removed.length > 0;
-        if (!hasRoleChanges) {
-            summaryMarkdown = syncSummaryMarkdown;
-            coreExports.info('No SWA role changes detected; skipping discussion creation.');
-        }
-        else {
-            // Discussionテンプレートに埋め込む値を先に構築しておく
-            const templateValues = {
-                swaName: inputs.swaName,
-                repo: repoFullName,
-                date: today(),
-                summaryMarkdown: syncSummaryMarkdown
-            };
-            const missingTemplateKeys = new Set();
-            const onMissingKey = (key) => {
-                missingTemplateKeys.add(key);
-            };
-            const discussionTitle = fillTemplate(inputs.discussionTitleTemplate, templateValues, { onMissingKey });
-            const discussionBodyTemplate = inputs.discussionBodyTemplate;
-            const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
-                onMissingKey
-            });
-            // SummaryをDiscussion本文に載せない設定は意図しているかもしれないので警告のみ
-            if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
-                coreExports.warning('discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.');
-            }
-            if (missingTemplateKeys.size) {
-                coreExports.warning(`Unknown template placeholders with no value: ${[
-                    ...missingTemplateKeys
-                ].join(', ')}`);
-            }
-            try {
-                discussionUrl = await createDiscussion(inputs.githubToken, owner, repo, inputs.discussionCategoryName, discussionTitle, discussionBody, categoryIds);
-                coreExports.info(`Created Discussion: ${discussionUrl}`);
-            }
-            catch (error) {
-                const message = error instanceof Error
-                    ? error.message
-                    : 'Unknown error creating discussion';
-                throw new Error(`Failed to create Discussion: ${message}`);
-            }
-            summaryMarkdown = buildSummaryMarkdown({
-                repo: repoFullName,
-                swaName: inputs.swaName,
-                added,
-                updated,
-                removed,
-                discussionUrl,
-                status: 'success'
-            });
-        }
-        coreExports.setOutput('added-count', added.length);
-        coreExports.setOutput('updated-count', updated.length);
-        coreExports.setOutput('removed-count', removed.length);
-        coreExports.setOutput('discussion-url', discussionUrl);
+        return {
+            repoFullName: context.repoFullName,
+            swaName: context.swaName,
+            discussionUrl,
+            summaryMarkdown,
+            added,
+            updated,
+            removed
+        };
     }
     catch (error) {
-        if (error instanceof Error) {
-            coreExports.error(error.message);
-            summaryMarkdown =
-                summaryMarkdown ||
-                    buildSummaryMarkdown({
-                        repo: repoFullName || 'unknown',
-                        swaName: inputs?.swaName ?? 'unknown',
-                        added,
-                        updated,
-                        removed,
-                        discussionUrl,
-                        status: 'failure',
-                        failureMessage: error.message
-                    });
-            coreExports.setFailed(error.message);
-        }
-        else {
-            summaryMarkdown =
-                summaryMarkdown ||
-                    buildSummaryMarkdown({
-                        repo: repoFullName || 'unknown',
-                        swaName: inputs?.swaName ?? 'unknown',
-                        added,
-                        updated,
-                        removed,
-                        discussionUrl,
-                        status: 'failure',
-                        failureMessage: 'Unknown error'
-                    });
-            coreExports.error('Unknown error');
-            coreExports.setFailed('Unknown error');
-        }
+        const message = toErrorMessage(error);
+        throw new Error(`Failed to create Discussion: ${message}`);
+    }
+}
+/**
+ * Outputsへ同期結果をセットする。
+ * @param results 招待/更新/削除件数とDiscussion URL。
+ */
+async function reportResults(results) {
+    coreExports.setOutput('added-count', results.added.length);
+    coreExports.setOutput('updated-count', results.updated.length);
+    coreExports.setOutput('removed-count', results.removed.length);
+    coreExports.setOutput('discussion-url', results.discussionUrl);
+}
+/**
+ * GitHub ActionsのJobサマリーへMarkdownを追記する。
+ * @param summaryMarkdown 成功・失敗を含むMarkdown本文。
+ */
+async function writeJobSummary(summaryMarkdown) {
+    await coreExports.summary
+        .addHeading('SWA role sync')
+        .addRaw(summaryMarkdown, true)
+        .write();
+}
+// GitHubとSWAの両方に対してロール同期を行い、結果をDiscussionとJobサマリーに書き出す
+/**
+ * GitHubリポジトリの権限をソース・オブ・トゥルースとしてSWAロールを同期するエントリーポイント。
+ * 成否にかかわらずJobサマリーへ結果を出力する。
+ */
+async function run() {
+    const state = {
+        repoFullName: '',
+        swaName: 'unknown',
+        discussionUrl: '',
+        summaryMarkdown: '',
+        added: [],
+        updated: [],
+        removed: []
+    };
+    try {
+        const context = await gatherInputsAndPrepare();
+        state.repoFullName = context.repoFullName;
+        state.swaName = context.swaName;
+        const results = await executeSyncPlan(context);
+        Object.assign(state, results);
+        await reportResults(results);
+    }
+    catch (error) {
+        const message = toErrorMessage(error);
+        state.summaryMarkdown = buildFailureSummary(state, message);
+        coreExports.error(message);
+        coreExports.setFailed(message);
     }
     finally {
-        if (summaryMarkdown) {
-            // GitHub ActionsのJobサマリーに結果を残し、UIから辿れるようにする
-            await coreExports.summary
-                .addHeading('SWA role sync')
-                .addRaw(summaryMarkdown, true)
-                .write();
+        if (state.summaryMarkdown) {
+            await writeJobSummary(state.summaryMarkdown);
         }
     }
 }

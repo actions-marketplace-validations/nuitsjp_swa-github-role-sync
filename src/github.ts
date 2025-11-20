@@ -13,6 +13,12 @@ type Collaborator = {
 }
 
 // Action入力からowner/repo形式を解析し、省略時はWorkflowのコンテキストを使う
+/**
+ * target-repo入力を解析し、省略時は現在のworkflowコンテキストを採用する。
+ * @param input Action入力`target-repo`の文字列（owner/repo形式）。
+ * @param contextRepo デフォルトのリポジトリ情報。
+ * @returns ownerとrepoの組。
+ */
 export function parseTargetRepo(
   input: string | undefined,
   contextRepo = github.context.repo
@@ -40,6 +46,12 @@ function toRole(collaborator: Collaborator): DesiredUser | null {
 }
 
 // GitHub APIから書き込み以上の権限を持つメンバーを集め、同期対象ユーザーへ変換する
+/**
+ * GitHub APIからwrite/maintain/admin権限を持つユーザーを列挙し、同期用の形へ整形する。
+ * @param octokit Octokitインスタンス。
+ * @param owner リポジトリ所有者。
+ * @param repo リポジトリ名。
+ */
 export async function listEligibleCollaborators(
   octokit: ReturnType<typeof github.getOctokit>,
   owner: string,
@@ -63,6 +75,14 @@ export async function listEligibleCollaborators(
 }
 
 // Discussionの作成にはカテゴリIDとリポジトリIDが必要なのでGraphQLで先に取得する
+/**
+ * Discussion作成に必要なリポジトリIDとカテゴリIDをGraphQLで取得する。
+ * @param token GitHubトークン。
+ * @param owner リポジトリ所有者。
+ * @param repo リポジトリ名。
+ * @param categoryName Discussionカテゴリ名。
+ * @returns repositoryIdとcategoryId。
+ */
 export async function getDiscussionCategoryId(
   token: string,
   owner: string,
@@ -104,7 +124,18 @@ export async function getDiscussionCategoryId(
   return { repositoryId: query.repository.id, categoryId: category.id }
 }
 
-// Discussionの作成。カテゴリIDが渡されなければ取得してからGraphQLミューテーションを投げる
+// Discussionの作成。カテゴリIDは事前に取得しておき、ここではミューテーションのみ実行する
+/**
+ * 取得済みカテゴリIDを使ってDiscussionを作成する。
+ * @param token GitHubトークン。
+ * @param owner リポジトリ所有者（ログ出力時の整合用）。
+ * @param repo リポジトリ名（ログ出力時の整合用）。
+ * @param categoryName Discussionカテゴリ名（ログ出力時の整合用）。
+ * @param title Discussionタイトル。
+ * @param body Discussion本文。
+ * @param categoryIds 事前取得済みのリポジトリIDとカテゴリID。
+ * @returns 作成されたDiscussionのURL。
+ */
 export async function createDiscussion(
   token: string,
   owner: string,
@@ -112,14 +143,15 @@ export async function createDiscussion(
   categoryName: string,
   title: string,
   body: string,
-  categoryIds?: { repositoryId: string; categoryId: string }
+  categoryIds: { repositoryId: string; categoryId: string }
 ): Promise<string> {
+  if (!categoryIds) {
+    throw new Error('categoryIds is required to create a discussion')
+  }
   const graphqlClient = graphql.defaults({
     headers: { authorization: `token ${token}` }
   })
-  const { repositoryId, categoryId } =
-    categoryIds ??
-    (await getDiscussionCategoryId(token, owner, repo, categoryName))
+  const { repositoryId, categoryId } = categoryIds
 
   const mutation = await graphqlClient<{
     createDiscussion: { discussion: { url: string } }

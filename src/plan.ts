@@ -8,6 +8,7 @@ import type {
 } from './types.js'
 
 // Azure Static Web Appsに用いるGitHubロール名は接頭辞を合わせて管理する
+/** 差分判定に用いるロール名のデフォルト接頭辞。 */
 export const DEFAULT_ROLE_PREFIX = 'github-'
 
 // GitHubのログイン名は大小や余分な空白が混在しやすいのでここで統一する
@@ -38,6 +39,14 @@ function normalizeRoles(roles: string | undefined, rolePrefix: string): string {
 }
 
 // GitHub側の希望状態とSWA側の現状から、招待・更新・削除の実行計画を組み立てる
+/**
+ * GitHubの理想状態とSWAの現状を比較し、招待/更新/削除の差分プランを生成する。
+ * @param githubUsers GitHubの書き込み以上ユーザーと役割。
+ * @param swaUsers SWAに登録済みのユーザー情報。
+ * @param roleForAdmin GitHub admin権限に割り当てるSWAロール。
+ * @param roleForWrite GitHub write/maintain権限に割り当てるSWAロール。
+ * @param options rolePrefixで同期対象ロールの接頭辞を指定可能。
+ */
 export function computeSyncPlan(
   githubUsers: DesiredUser[],
   swaUsers: SwaUser[],

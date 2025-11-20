@@ -1,52 +1,14 @@
 import { jest } from '@jest/globals'
-import { promisify } from 'node:util'
+import { createExecFileMock } from './helpers/execFileMock'
 
-const execFileMock = jest.fn()
 const coreDebugMock = jest.fn()
-
-execFileMock[promisify.custom] = (...args: unknown[]) =>
-  new Promise((resolve, reject) => {
-    execFileMock(
-      ...args,
-      (error: Error | null, stdout?: unknown, stderr?: unknown) => {
-        if (error) {
-          reject(error)
-          return
-        }
-        resolve({ stdout, stderr })
-      }
-    )
-  })
-
-function mockExecOnce(stdout: string, assertArgs?: (args: unknown[]) => void) {
-  execFileMock.mockImplementationOnce((...args) => {
-    assertArgs?.(args)
-    const callback = args.find((arg) => typeof arg === 'function') as (
-      err: Error | null,
-      stdout?: unknown,
-      stderr?: unknown
-    ) => void
-    callback(null, stdout, '')
-  })
-}
-
-function mockExecErrorOnce(
-  errorMessage: string,
-  stderrMessage: string,
-  assertArgs?: (args: unknown[]) => void
-) {
-  execFileMock.mockImplementationOnce((...args) => {
-    assertArgs?.(args)
-    const callback = args.find((arg) => typeof arg === 'function') as (
-      err: Error | null,
-      stdout?: unknown,
-      stderr?: unknown
-    ) => void
-    const error = new Error(errorMessage) as Error & { stderr?: string }
-    error.stderr = stderrMessage
-    callback(error, '', stderrMessage)
-  })
-}
+const {
+  execFileMock,
+  enqueueSuccess,
+  enqueueFailure,
+  enqueueResult,
+  reset
+} = createExecFileMock()
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -62,14 +24,14 @@ async function loadAzure() {
 }
 
 beforeEach(() => {
-  execFileMock.mockReset()
+  reset()
   coreDebugMock.mockReset()
 })
 
 describe('azure helpers', () => {
   // listSwaUsersがproviderの大小を無視してGitHubユーザーだけ返すことを確認
   it('returns only GitHub users from listSwaUsers regardless of provider case', async () => {
-    mockExecOnce(
+    enqueueSuccess(
       JSON.stringify([
         { userDetails: 'octocat', roles: 'github-admin', provider: 'GitHub' },
         {
@@ -108,7 +70,7 @@ describe('azure helpers', () => {
 
   // getSwaDefaultHostnameが余分な改行を除去して値を返すケース
   it('resolves default hostname and trims whitespace', async () => {
-    mockExecOnce('example.azurewebsites.net\n')
+    enqueueSuccess('example.azurewebsites.net\n')
 
     const { getSwaDefaultHostname } = await loadAzure()
     await expect(getSwaDefaultHostname('app', 'rg')).resolves.toBe(
@@ -118,7 +80,7 @@ describe('azure helpers', () => {
 
   // 既定ホスト名が空のときにエラーで落ちることを検証
   it('throws when default hostname is empty', async () => {
-    mockExecOnce('\n')
+    enqueueSuccess('\n')
 
     const { getSwaDefaultHostname } = await loadAzure()
     await expect(getSwaDefaultHostname('app', 'rg')).rejects.toThrow(
@@ -128,7 +90,7 @@ describe('azure helpers', () => {
 
   // Azure CLI失敗時にstderrの内容をメッセージへ取り込む振る舞い
   it('includes stderr output when Azure CLI fails', async () => {
-    mockExecErrorOnce(
+    enqueueFailure(
       'Command failed: az staticwebapp show',
       'AuthorizationFailed: access denied'
     )
@@ -143,7 +105,20 @@ describe('azure helpers', () => {
 
   // stderrが空の場合は元のメッセージを保つことを確認
   it('keeps original error message when stderr output is empty', async () => {
-    mockExecErrorOnce('Command failed: az staticwebapp show', '')
+    enqueueFailure('Command failed: az staticwebapp show', '')
+
+    const { getSwaDefaultHostname } = await loadAzure()
+    await expect(getSwaDefaultHostname('app', 'rg')).rejects.toMatchObject({
+      message: 'Command failed: az staticwebapp show'
+    })
+  })
+
+  // stderrが未定義のケースでもメッセージを崩さないことを確認
+  it('preserves error message when stderr is not available', async () => {
+    const error = new Error(
+      'Command failed: az staticwebapp show'
+    ) as Error & { stderr?: string }
+    enqueueResult({ error, stdout: '', stderr: undefined })
 
     const { getSwaDefaultHostname } = await loadAzure()
     await expect(getSwaDefaultHostname('app', 'rg')).rejects.toMatchObject({
@@ -154,7 +129,7 @@ describe('azure helpers', () => {
   // すでにstderr文字列がmessageに含まれている場合に重複しないよう検証
   it('does not duplicate stderr content when already present in message', async () => {
     const stderr = 'AuthorizationFailed: repeating details'
-    mockExecErrorOnce(`Command failed: az staticwebapp show\n${stderr}`, stderr)
+    enqueueFailure(`Command failed: az staticwebapp show\n${stderr}`, stderr)
 
     const { getSwaDefaultHostname } = await loadAzure()
     const escaped = escapeRegExp(stderr)
@@ -170,13 +145,13 @@ describe('azure helpers', () => {
 
   // 招待・更新・削除の順にCLIを呼ぶ正常系
   it('invites and updates users via Azure CLI', async () => {
-    mockExecOnce(JSON.stringify({ invitationUrl: 'https://invite/me' }))
-    mockExecOnce('', (args) => {
+    enqueueSuccess(JSON.stringify({ invitationUrl: 'https://invite/me' }))
+    enqueueSuccess('', (args) => {
       const cliArgs = args[1] as string[]
       const rolesIndex = cliArgs.indexOf('--roles')
       expect(cliArgs[rolesIndex + 1]).toBe('new-role')
     })
-    mockExecOnce('', (args) => {
+    enqueueSuccess('', (args) => {
       const cliArgs = args[1] as string[]
       const rolesIndex = cliArgs.indexOf('--roles')
       expect(cliArgs[rolesIndex + 1]).toBe('')
@@ -195,7 +170,7 @@ describe('azure helpers', () => {
 
   // 招待レスポンスにURLが無い異常系
   it('throws when invite URL is missing in response', async () => {
-    mockExecOnce(JSON.stringify({}))
+    enqueueSuccess(JSON.stringify({}))
 
     const { inviteUser } = await loadAzure()
     await expect(

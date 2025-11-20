@@ -72,20 +72,48 @@ describe('github helpers', () => {
     )
   })
 
-  // GraphQLを用いたDiscussion作成のハッピーパス
-  it('creates discussions via GraphQL', async () => {
-    graphqlRequestMock
-      .mockResolvedValueOnce({
-        repository: {
-          id: 'repo-id',
-          discussionCategories: {
-            nodes: [{ id: 'cat-id', name: 'General' }]
-          }
-        }
-      })
-      .mockResolvedValueOnce({
-        createDiscussion: { discussion: { url: 'https://example.com/disc/1' } }
-      })
+  // GraphQLを用いてカテゴリIDを取得する流れ
+  it('fetches discussion category ids via GraphQL', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        id: 'repo-id',
+        discussionCategories: { nodes: [{ id: 'cat-id', name: 'General' }] }
+      }
+    })
+
+    const { getDiscussionCategoryId } = await loadGithub()
+    const ids = await getDiscussionCategoryId(
+      'token',
+      'owner',
+      'repo',
+      'General'
+    )
+
+    expect(ids).toEqual({ repositoryId: 'repo-id', categoryId: 'cat-id' })
+    expect(graphqlMock.defaults).toHaveBeenCalledTimes(1)
+    expect(graphqlRequestMock).toHaveBeenCalledWith(
+      expect.stringContaining('discussionCategories'),
+      { owner: 'owner', repo: 'repo' }
+    )
+  })
+
+  // 指定カテゴリが存在しない場合にエラーで失敗する挙動
+  it('throws when discussion category is missing', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: { id: 'repo-id', discussionCategories: { nodes: [] } }
+    })
+
+    const { getDiscussionCategoryId } = await loadGithub()
+    await expect(
+      getDiscussionCategoryId('token', 'owner', 'repo', 'Missing')
+    ).rejects.toThrow('Discussion category "Missing" not found')
+  })
+
+  // 取得済みのカテゴリIDを利用してDiscussionを作成する
+  it('creates discussions via GraphQL with provided category ids', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      createDiscussion: { discussion: { url: 'https://example.com/disc/1' } }
+    })
 
     const { createDiscussion } = await loadGithub()
     const url = await createDiscussion(
@@ -94,18 +122,13 @@ describe('github helpers', () => {
       'repo',
       'General',
       'Title',
-      'Body'
+      'Body',
+      { repositoryId: 'repo-id', categoryId: 'cat-id' }
     )
 
     expect(url).toBe('https://example.com/disc/1')
-    expect(graphqlMock.defaults).toHaveBeenCalledTimes(2)
-    expect(graphqlRequestMock).toHaveBeenNthCalledWith(
-      1,
-      expect.stringContaining('discussionCategories'),
-      { owner: 'owner', repo: 'repo' }
-    )
-    expect(graphqlRequestMock).toHaveBeenNthCalledWith(
-      2,
+    expect(graphqlMock.defaults).toHaveBeenCalledTimes(1)
+    expect(graphqlRequestMock).toHaveBeenCalledWith(
       expect.stringContaining('createDiscussion'),
       {
         repositoryId: 'repo-id',
@@ -116,15 +139,19 @@ describe('github helpers', () => {
     )
   })
 
-  // 指定カテゴリが存在しない場合にエラーで失敗する挙動
-  it('throws when discussion category is missing', async () => {
-    graphqlRequestMock.mockResolvedValueOnce({
-      repository: { id: 'repo-id', discussionCategories: { nodes: [] } }
-    })
-
+  // categoryIds無しで呼び出した場合に早期に失敗する
+  it('requires category ids to create a discussion', async () => {
     const { createDiscussion } = await loadGithub()
     await expect(
-      createDiscussion('token', 'owner', 'repo', 'Missing', 'Title', 'Body')
-    ).rejects.toThrow('Discussion category "Missing" not found')
+      createDiscussion(
+        'token',
+        'owner',
+        'repo',
+        'General',
+        'Title',
+        'Body',
+        undefined as never
+      )
+    ).rejects.toThrow('categoryIds is required to create a discussion')
   })
 })

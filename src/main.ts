@@ -26,6 +26,11 @@ import type {
 const SWA_CUSTOM_ROLE_ASSIGNMENT_LIMIT = 25
 
 // カスタムロールを付与するユーザー数がAzureの上限を超えていないかを検証する
+/**
+ * カスタムロール割り当て数がSWAの上限を超えないことを事前にチェックする。
+ * @param users GitHub権限から抽出した同期対象ユーザー。
+ * @throws 上限超過時。
+ */
 function assertWithinSwaRoleLimit(users: DesiredUser[]): void {
   const uniqueLogins = new Set(
     users
@@ -45,6 +50,7 @@ type Inputs = {
   swaName: string
   swaResourceGroup: string
   swaDomain?: string
+  invitationExpirationHours: number
   roleForAdmin: string
   roleForWrite: string
   rolePrefix: string
@@ -53,14 +59,66 @@ type Inputs = {
   discussionBodyTemplate: string
 }
 
+type SyncContext = Inputs & {
+  owner: string
+  repo: string
+  repoFullName: string
+  categoryIds: { repositoryId: string; categoryId: string }
+  swaDomain: string
+  octokit: ReturnType<typeof github.getOctokit>
+}
+
+type SyncResults = {
+  repoFullName: string
+  swaName: string
+  discussionUrl: string
+  summaryMarkdown: string
+  added: InvitationResult[]
+  updated: UpdateResult[]
+  removed: RemovalResult[]
+}
+
+/**
+ * 招待リンクの有効期限入力を検証し、デフォルト値を補完する。
+ * @param input GitHub Action入力`invitation-expiration-hours`の文字列。
+ * @returns 1〜168時間の整数（指定なしは24）。
+ * @throws 範囲外や数値でない場合。
+ */
+function parseInvitationExpirationHours(input: string): number {
+  const trimmed = input.trim()
+  if (!trimmed) {
+    return 24
+  }
+  const hours = Number(trimmed)
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isInteger(hours) ||
+    hours < 1 ||
+    hours > 168
+  ) {
+    throw new Error(
+      'invitation-expiration-hours must be between 1 and 168 hours'
+    )
+  }
+  return hours
+}
+
 // GitHub Actionの入力値をまとめて取得し、デフォルト値を補完する
+/**
+ * GitHub Action入力を集約し、デフォルト値や検証済みの型を付与する。
+ * @returns SWA同期で利用する各種入力。
+ */
 function getInputs(): Inputs {
+  const invitationExpirationHours = parseInvitationExpirationHours(
+    core.getInput('invitation-expiration-hours')
+  )
   return {
     githubToken: core.getInput('github-token', { required: true }),
     targetRepo: core.getInput('target-repo'),
     swaName: core.getInput('swa-name', { required: true }),
     swaResourceGroup: core.getInput('swa-resource-group', { required: true }),
     swaDomain: core.getInput('swa-domain'),
+    invitationExpirationHours,
     roleForAdmin: core.getInput('role-for-admin') || 'github-admin',
     roleForWrite: core.getInput('role-for-write') || 'github-writer',
     rolePrefix: core.getInput('role-prefix') || 'github-',
@@ -79,233 +137,308 @@ function getInputs(): Inputs {
 }
 
 // yyyy-mm-ddの簡易な日付表現を作成する（discussionタイトル用）
+/**
+ * Discussionタイトル向けの簡易日付（YYYY-MM-DD）を返す。
+ */
 function today(): string {
   return new Date().toISOString().split('T')[0]
 }
 
-// GitHubとSWAの両方に対してロール同期を行い、結果をDiscussionとJobサマリーに書き出す
-export async function run(): Promise<void> {
-  let inputs: Inputs | undefined
-  let repoFullName = ''
-  let summaryMarkdown = ''
-  let discussionUrl = ''
+/**
+ * 例外オブジェクトを文字列に正規化し、非Errorでも原因を見失わないようにする。
+ * @param error catch節で受け取った原因オブジェクト。
+ */
+function toErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || 'Unknown error'
+  }
+  const text = String(error)
+  return text || 'Unknown error'
+}
 
+/**
+ * 既存のサマリーを維持しつつ、失敗時のMarkdownを構築する。
+ * @param state 現在までに構築済みの結果。
+ * @param failureMessage エラーメッセージ。
+ */
+function buildFailureSummary(
+  state: SyncResults,
+  failureMessage: string
+): string {
+  return (
+    state.summaryMarkdown ||
+    buildSummaryMarkdown({
+      repo: state.repoFullName || 'unknown',
+      swaName: state.swaName || 'unknown',
+      added: state.added,
+      updated: state.updated,
+      removed: state.removed,
+      discussionUrl: state.discussionUrl,
+      status: 'failure',
+      failureMessage
+    })
+  )
+}
+
+/**
+ * 入力値の検証・リポジトリ情報の解析・DiscussionカテゴリIDやSWAドメインの解決をまとめて行う。
+ * @returns 同期に必要なコンテキスト。
+ */
+async function gatherInputsAndPrepare(): Promise<SyncContext> {
+  const inputs = getInputs()
+  const { owner, repo } = parseTargetRepo(inputs.targetRepo)
+  const repoFullName = `${owner}/${repo}`
+  const categoryIds = await getDiscussionCategoryId(
+    inputs.githubToken,
+    owner,
+    repo,
+    inputs.discussionCategoryName
+  )
+  const swaDomain =
+    inputs.swaDomain ||
+    (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup))
+  core.info(`Using SWA domain: ${swaDomain}`)
+
+  const octokit = github.getOctokit(inputs.githubToken)
+
+  return {
+    ...inputs,
+    owner,
+    repo,
+    repoFullName,
+    categoryIds,
+    swaDomain,
+    octokit
+  }
+}
+
+/**
+ * GitHub→SWAの差分同期を実行し、Discussion作成とサマリー生成までを完了させる。
+ * @param context 事前に解決済みの入力・APIクライアント・カテゴリIDなど。
+ * @returns Discussion URLとサマリーMarkdownを含む結果。
+ */
+async function executeSyncPlan(context: SyncContext): Promise<SyncResults> {
   const added: InvitationResult[] = []
   const updated: UpdateResult[] = []
   const removed: RemovalResult[] = []
 
+  const githubUsers = await listEligibleCollaborators(
+    context.octokit,
+    context.owner,
+    context.repo
+  )
+
+  core.info(
+    `Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${context.repoFullName})`
+  )
+
+  assertWithinSwaRoleLimit(githubUsers)
+
+  const swaUsers = await listSwaUsers(
+    context.swaName,
+    context.swaResourceGroup
+  )
+  const plan = computeSyncPlan(
+    githubUsers,
+    swaUsers,
+    context.roleForAdmin,
+    context.roleForWrite,
+    { rolePrefix: context.rolePrefix }
+  )
+
+  core.info(
+    `Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`
+  )
+
+  for (const add of plan.toAdd) {
+    const inviteUrl = await inviteUser(
+      context.swaName,
+      context.swaResourceGroup,
+      context.swaDomain,
+      add.login,
+      add.role,
+      context.invitationExpirationHours
+    )
+    added.push({ login: add.login, role: add.role, inviteUrl })
+    core.info(`Invited ${add.login} with role ${add.role}`)
+  }
+
+  for (const update of plan.toUpdate) {
+    await updateUserRoles(
+      context.swaName,
+      context.swaResourceGroup,
+      update.login,
+      update.role
+    )
+    updated.push({ login: update.login, role: update.role })
+    core.info(`Updated ${update.login} to role ${update.role}`)
+  }
+
+  for (const removal of plan.toRemove) {
+    await clearUserRoles(
+      context.swaName,
+      context.swaResourceGroup,
+      removal.login
+    )
+    removed.push({ login: removal.login })
+    core.info(`Removed roles from ${removal.login}`)
+  }
+
+  const syncSummaryMarkdown = buildSummaryMarkdown({
+    repo: context.repoFullName,
+    swaName: context.swaName,
+    added,
+    updated,
+    removed,
+    status: 'success'
+  })
+
+  const hasRoleChanges =
+    added.length > 0 || updated.length > 0 || removed.length > 0
+
+  if (!hasRoleChanges) {
+    core.info('No SWA role changes detected; skipping discussion creation.')
+    return {
+      repoFullName: context.repoFullName,
+      swaName: context.swaName,
+      discussionUrl: '',
+      summaryMarkdown: syncSummaryMarkdown,
+      added,
+      updated,
+      removed
+    }
+  }
+
+  const templateValues = {
+    swaName: context.swaName,
+    repo: context.repoFullName,
+    date: today(),
+    summaryMarkdown: syncSummaryMarkdown
+  }
+
+  const missingTemplateKeys = new Set<string>()
+  const onMissingKey = (key: string): void => {
+    missingTemplateKeys.add(key)
+  }
+
+  const discussionTitle = fillTemplate(
+    context.discussionTitleTemplate,
+    templateValues,
+    { onMissingKey }
+  )
+  const discussionBodyTemplate = context.discussionBodyTemplate
+  const discussionBody = fillTemplate(
+    discussionBodyTemplate,
+    templateValues,
+    {
+      onMissingKey
+    }
+  )
+
+  if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
+    core.warning(
+      'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
+    )
+  }
+
+  if (missingTemplateKeys.size) {
+    core.warning(
+      `Unknown template placeholders with no value: ${[
+        ...missingTemplateKeys
+      ].join(', ')}`
+    )
+  }
+
   try {
-    // 入力値を取得し、同期対象のリポジトリとSWA名などを確定させる
-    inputs = getInputs()
-    const { owner, repo } = parseTargetRepo(inputs.targetRepo)
-    repoFullName = `${owner}/${repo}`
-
-    // DiscussionカテゴリのIDはGraphQLミューテーションで必須なため先に引いておく
-    const categoryIds = await getDiscussionCategoryId(
-      inputs.githubToken,
-      owner,
-      repo,
-      inputs.discussionCategoryName
+    const discussionUrl = await createDiscussion(
+      context.githubToken,
+      context.owner,
+      context.repo,
+      context.discussionCategoryName,
+      discussionTitle,
+      discussionBody,
+      context.categoryIds
     )
+    core.info(`Created Discussion: ${discussionUrl}`)
 
-    // SWAドメインは入力優先、無ければ既定ホスト名を問い合わせる
-    const swaDomain =
-      inputs.swaDomain ||
-      (await getSwaDefaultHostname(inputs.swaName, inputs.swaResourceGroup))
-    core.info(`Using SWA domain: ${swaDomain}`)
-
-    // GitHub側のコラボレーターを集め、同期対象ユーザーの粗いプランを作る準備をする
-    const octokit = github.getOctokit(inputs.githubToken)
-    const githubUsers = await listEligibleCollaborators(octokit, owner, repo)
-
-    core.info(
-      `Found ${githubUsers.length} GitHub users with write/admin (owner/repo: ${repoFullName})`
-    )
-
-    assertWithinSwaRoleLimit(githubUsers)
-
-    // SWA側のユーザー一覧を取得して差分計算に渡す
-    const swaUsers = await listSwaUsers(inputs.swaName, inputs.swaResourceGroup)
-    const plan = computeSyncPlan(
-      githubUsers,
-      swaUsers,
-      inputs.roleForAdmin,
-      inputs.roleForWrite,
-      { rolePrefix: inputs.rolePrefix }
-    )
-
-    core.info(
-      `Plan -> add:${plan.toAdd.length} update:${plan.toUpdate.length} remove:${plan.toRemove.length}`
-    )
-
-    // 追加対象には招待リンクを発行する
-    for (const add of plan.toAdd) {
-      const inviteUrl = await inviteUser(
-        inputs.swaName,
-        inputs.swaResourceGroup,
-        swaDomain,
-        add.login,
-        add.role
-      )
-      added.push({ login: add.login, role: add.role, inviteUrl })
-      core.info(`Invited ${add.login} with role ${add.role}`)
-    }
-
-    // 既存ユーザーのロール差分はupdate APIで上書きする
-    for (const update of plan.toUpdate) {
-      await updateUserRoles(
-        inputs.swaName,
-        inputs.swaResourceGroup,
-        update.login,
-        update.role
-      )
-      updated.push({ login: update.login, role: update.role })
-      core.info(`Updated ${update.login} to role ${update.role}`)
-    }
-
-    // 不要になったユーザーのロールはクリアしてアクセスを停止させる
-    for (const removal of plan.toRemove) {
-      await clearUserRoles(
-        inputs.swaName,
-        inputs.swaResourceGroup,
-        removal.login
-      )
-      removed.push({ login: removal.login })
-      core.info(`Removed roles from ${removal.login}`)
-    }
-
-    const syncSummaryMarkdown = buildSummaryMarkdown({
-      repo: repoFullName,
-      swaName: inputs.swaName,
+    const summaryMarkdown = buildSummaryMarkdown({
+      repo: context.repoFullName,
+      swaName: context.swaName,
       added,
       updated,
       removed,
+      discussionUrl,
       status: 'success'
     })
 
-    // 差分が無い場合はDiscussionを作らずにサマリーのみ書き出す
-    const hasRoleChanges =
-      added.length > 0 || updated.length > 0 || removed.length > 0
-
-    if (!hasRoleChanges) {
-      summaryMarkdown = syncSummaryMarkdown
-      core.info('No SWA role changes detected; skipping discussion creation.')
-    } else {
-      // Discussionテンプレートに埋め込む値を先に構築しておく
-      const templateValues = {
-        swaName: inputs.swaName,
-        repo: repoFullName,
-        date: today(),
-        summaryMarkdown: syncSummaryMarkdown
-      }
-
-      const missingTemplateKeys = new Set<string>()
-      const onMissingKey = (key: string): void => {
-        missingTemplateKeys.add(key)
-      }
-
-      const discussionTitle = fillTemplate(
-        inputs.discussionTitleTemplate,
-        templateValues,
-        { onMissingKey }
-      )
-      const discussionBodyTemplate = inputs.discussionBodyTemplate
-      const discussionBody = fillTemplate(
-        discussionBodyTemplate,
-        templateValues,
-        {
-          onMissingKey
-        }
-      )
-
-      // SummaryをDiscussion本文に載せない設定は意図しているかもしれないので警告のみ
-      if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
-        core.warning(
-          'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
-        )
-      }
-
-      if (missingTemplateKeys.size) {
-        core.warning(
-          `Unknown template placeholders with no value: ${[
-            ...missingTemplateKeys
-          ].join(', ')}`
-        )
-      }
-
-      try {
-        discussionUrl = await createDiscussion(
-          inputs.githubToken,
-          owner,
-          repo,
-          inputs.discussionCategoryName,
-          discussionTitle,
-          discussionBody,
-          categoryIds
-        )
-        core.info(`Created Discussion: ${discussionUrl}`)
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Unknown error creating discussion'
-        throw new Error(`Failed to create Discussion: ${message}`)
-      }
-
-      summaryMarkdown = buildSummaryMarkdown({
-        repo: repoFullName,
-        swaName: inputs.swaName,
-        added,
-        updated,
-        removed,
-        discussionUrl,
-        status: 'success'
-      })
+    return {
+      repoFullName: context.repoFullName,
+      swaName: context.swaName,
+      discussionUrl,
+      summaryMarkdown,
+      added,
+      updated,
+      removed
     }
-
-    core.setOutput('added-count', added.length)
-    core.setOutput('updated-count', updated.length)
-    core.setOutput('removed-count', removed.length)
-    core.setOutput('discussion-url', discussionUrl)
   } catch (error) {
-    if (error instanceof Error) {
-      core.error(error.message)
-      summaryMarkdown =
-        summaryMarkdown ||
-        buildSummaryMarkdown({
-          repo: repoFullName || 'unknown',
-          swaName: inputs?.swaName ?? 'unknown',
-          added,
-          updated,
-          removed,
-          discussionUrl,
-          status: 'failure',
-          failureMessage: error.message
-        })
-      core.setFailed(error.message)
-    } else {
-      summaryMarkdown =
-        summaryMarkdown ||
-        buildSummaryMarkdown({
-          repo: repoFullName || 'unknown',
-          swaName: inputs?.swaName ?? 'unknown',
-          added,
-          updated,
-          removed,
-          discussionUrl,
-          status: 'failure',
-          failureMessage: 'Unknown error'
-        })
-      core.error('Unknown error')
-      core.setFailed('Unknown error')
-    }
+    const message = toErrorMessage(error)
+    throw new Error(`Failed to create Discussion: ${message}`)
+  }
+}
+
+/**
+ * Outputsへ同期結果をセットする。
+ * @param results 招待/更新/削除件数とDiscussion URL。
+ */
+async function reportResults(results: SyncResults): Promise<void> {
+  core.setOutput('added-count', results.added.length)
+  core.setOutput('updated-count', results.updated.length)
+  core.setOutput('removed-count', results.removed.length)
+  core.setOutput('discussion-url', results.discussionUrl)
+}
+
+/**
+ * GitHub ActionsのJobサマリーへMarkdownを追記する。
+ * @param summaryMarkdown 成功・失敗を含むMarkdown本文。
+ */
+async function writeJobSummary(summaryMarkdown: string): Promise<void> {
+  await core.summary
+    .addHeading('SWA role sync')
+    .addRaw(summaryMarkdown, true)
+    .write()
+}
+
+// GitHubとSWAの両方に対してロール同期を行い、結果をDiscussionとJobサマリーに書き出す
+/**
+ * GitHubリポジトリの権限をソース・オブ・トゥルースとしてSWAロールを同期するエントリーポイント。
+ * 成否にかかわらずJobサマリーへ結果を出力する。
+ */
+export async function run(): Promise<void> {
+  const state: SyncResults = {
+    repoFullName: '',
+    swaName: 'unknown',
+    discussionUrl: '',
+    summaryMarkdown: '',
+    added: [],
+    updated: [],
+    removed: []
+  }
+
+  try {
+    const context = await gatherInputsAndPrepare()
+    state.repoFullName = context.repoFullName
+    state.swaName = context.swaName
+    const results = await executeSyncPlan(context)
+    Object.assign(state, results)
+    await reportResults(results)
+  } catch (error) {
+    const message = toErrorMessage(error)
+    state.summaryMarkdown = buildFailureSummary(state, message)
+    core.error(message)
+    core.setFailed(message)
   } finally {
-    if (summaryMarkdown) {
-      // GitHub ActionsのJobサマリーに結果を残し、UIから辿れるようにする
-      await core.summary
-        .addHeading('SWA role sync')
-        .addRaw(summaryMarkdown, true)
-        .write()
+    if (state.summaryMarkdown) {
+      await writeJobSummary(state.summaryMarkdown)
     }
   }
 }

@@ -29,6 +29,12 @@ function normalizeProvider(provider: string | undefined): string {
   return provider ? provider.trim().toLowerCase() : ''
 }
 
+/**
+ * SWAに登録されているGitHubユーザー一覧を取得する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @returns GitHubプロバイダーのユーザーのみを返す配列。
+ */
 export async function listSwaUsers(
   name: string,
   resourceGroup: string
@@ -54,6 +60,13 @@ export async function listSwaUsers(
   return githubUsers
 }
 
+/**
+ * SWAの既定ホスト名（*.azurestaticapps.netやカスタムドメイン）を解決する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @returns 既定ホスト名。
+ * @throws 解決できない場合。
+ */
 export async function getSwaDefaultHostname(
   name: string,
   resourceGroup: string
@@ -78,6 +91,16 @@ export async function getSwaDefaultHostname(
   return domain
 }
 
+/**
+ * GitHubユーザーをSWAへ招待するためのURLを発行する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @param domain 招待URLに含めるドメイン。
+ * @param githubUser 招待対象のGitHubログイン。
+ * @param roles 付与するロール（カンマ区切り）。
+ * @param expirationHours 招待リンクの有効期限（時間）。省略時は24時間。
+ * @returns 招待URL。
+ */
 export async function inviteUser(
   name: string,
   resourceGroup: string,
@@ -116,6 +139,13 @@ export async function inviteUser(
   return url
 }
 
+/**
+ * 既存のSWAユーザーに対してロールを更新する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @param githubUser 対象GitHubユーザー。
+ * @param roles 設定するロール（カンマ区切り）。空文字で削除を指示。
+ */
 export async function updateUserRoles(
   name: string,
   resourceGroup: string,
@@ -140,6 +170,12 @@ export async function updateUserRoles(
   ])
 }
 
+/**
+ * SWAユーザーからすべてのロールを削除する。
+ * @param name Static Web App名。
+ * @param resourceGroup リソースグループ名。
+ * @param githubUser 対象GitHubユーザー。
+ */
 export async function clearUserRoles(
   name: string,
   resourceGroup: string,

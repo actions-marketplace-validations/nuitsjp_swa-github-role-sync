@@ -95,6 +95,7 @@ function setDefaultInputs() {
   inputs.set('role-for-admin', 'github-admin')
   inputs.set('role-for-write', 'github-writer')
   inputs.set('role-prefix', '')
+  inputs.set('invitation-expiration-hours', '')
 }
 
 beforeEach(() => {
@@ -172,7 +173,8 @@ describe('run', () => {
       'my-rg',
       'swa.azurewebsites.net',
       'alice',
-      'github-admin'
+      'github-admin',
+      24
     )
     expect(updateUserRolesMock).toHaveBeenCalledWith(
       'my-swa',
@@ -270,7 +272,8 @@ describe('run', () => {
       'my-rg',
       'provided.example.net',
       'alice',
-      'github-admin'
+      'github-admin',
+      24
     )
     expect(updateUserRolesMock).not.toHaveBeenCalled()
     expect(clearUserRolesMock).not.toHaveBeenCalled()
@@ -292,6 +295,50 @@ describe('run', () => {
     expect(setOutputMock).toHaveBeenCalledWith(
       'discussion-url',
       'https://github.com/owner/repo/discussions/999'
+    )
+  })
+
+  // 招待有効期限を入力から上書きしてAzure CLIに渡す
+  it('forwards custom invitation expiration hours to Azure invites', async () => {
+    inputs.set('invitation-expiration-hours', '48')
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' }
+    ])
+    listSwaUsersMock.mockResolvedValue([])
+    inviteUserMock.mockResolvedValue('https://invite/alice')
+    createDiscussionMock.mockResolvedValue(
+      'https://github.com/owner/repo/discussions/123'
+    )
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(inviteUserMock).toHaveBeenCalledWith(
+      'my-swa',
+      'my-rg',
+      'swa.azurewebsites.net',
+      'alice',
+      'github-admin',
+      48
+    )
+  })
+
+  // 招待有効期限が許容範囲外なら早期に失敗させる
+  it('validates invitation expiration hours range', async () => {
+    inputs.set('invitation-expiration-hours', '0')
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(listEligibleCollaboratorsMock).not.toHaveBeenCalled()
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'invitation-expiration-hours must be between 1 and 168 hours'
+    )
+    const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
+    expect(summaryMarkdown).toContain('Status: failure')
+    expect(summaryMarkdown).toContain(
+      'invitation-expiration-hours must be between 1 and 168 hours'
     )
   })
 
@@ -393,10 +440,37 @@ describe('run', () => {
     await run()
 
     expect(listSwaUsersMock).not.toHaveBeenCalled()
-    expect(setFailedMock).toHaveBeenCalledWith('Unknown error')
-    expect(errorMock).toHaveBeenCalledWith('Unknown error')
+    expect(setFailedMock).toHaveBeenCalledWith('boom')
+    expect(errorMock).toHaveBeenCalledWith('boom')
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Status: failure')
+    expect(summaryMarkdown).toContain('boom')
+  })
+
+  // Errorのmessageが空でもUnknownで補足する
+  it('falls back to unknown message when Error is missing text', async () => {
+    inputs.set('swa-domain', 'provided.example.net')
+    getSwaDefaultHostnameMock.mockResolvedValue('fallback-should-not-be-used')
+    listEligibleCollaboratorsMock.mockRejectedValue(new Error(''))
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(setFailedMock).toHaveBeenCalledWith('Unknown error')
+    const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
+    expect(summaryMarkdown).toContain('Unknown error')
+  })
+
+  // 非Error値でも空文字ならUnknownとして扱う
+  it('falls back to unknown message when rejection is an empty string', async () => {
+    inputs.set('swa-domain', 'provided.example.net')
+    listEligibleCollaboratorsMock.mockRejectedValue('')
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(setFailedMock).toHaveBeenCalledWith('Unknown error')
+    const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Unknown error')
   })
 
@@ -444,11 +518,11 @@ describe('run', () => {
     await run()
 
     expect(setFailedMock).toHaveBeenCalledWith(
-      'Failed to create Discussion: Unknown error creating discussion'
+      'Failed to create Discussion: bad-response'
     )
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain(
-      'Error: Failed to create Discussion: Unknown error creating discussion'
+      'Error: Failed to create Discussion: bad-response'
     )
   })
 
@@ -517,7 +591,7 @@ describe('run', () => {
     const { run } = await loadMain()
     await run()
 
-    expect(setFailedMock).toHaveBeenCalledWith('Unknown error')
+    expect(setFailedMock).toHaveBeenCalledWith('string-failure')
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Status: success')
   })
@@ -534,7 +608,7 @@ describe('run', () => {
     const { run } = await loadMain()
     await run()
 
-    expect(setFailedMock).toHaveBeenCalledWith('Unknown error')
+    expect(setFailedMock).toHaveBeenCalledWith('token missing')
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Repository: unknown')
     expect(summaryMarkdown).toContain('Static Web App: unknown')

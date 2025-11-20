@@ -105,6 +105,7 @@ jobs:
 | `swa-name`                  | true     | –                                                    | 対象Static Web App名。                                                                    |
 | `swa-resource-group`        | true     | –                                                    | Static Web Appが属するリソースグループ名。                                                |
 | `swa-domain`                | false    | SWA既定ホスト名                                      | 招待リンクに含めるカスタムドメイン。省略時は`az staticwebapp show`で解決。                |
+| `invitation-expiration-hours` | false    | `24`                                                 | 招待リンクの有効期限（1〜168時間）。                                                     |
 | `role-for-admin`            | false    | `github-admin`                                       | GitHub `admin`に付与するSWAロール名。                                                     |
 | `role-for-write`            | false    | `github-writer`                                      | GitHub `write`/`maintain`に付与するSWAロール名。                                          |
 | `role-prefix`               | false    | `github-`                                            | 差分対象とするSWAロールのプレフィックス。`role-for-*`で独自ロールを設定する際に指定。     |
@@ -127,6 +128,7 @@ jobs:
 - `target-repo`を他リポジトリに向ける際は`github-token`に対象リポジトリへアクセス可能なPATをセットしてください。
 - 差分ロジックは`role-prefix`で指定したプレフィックスに一致するロールのみを同期対象としています。`role-for-*`で独自ロールを指定する場合は同じプレフィックスを使ってください。
 - SWAの仕様によりカスタムロールを割り当て可能なユーザーは25名に制限されています。同期対象が25名を超えた場合、本Actionはエラーで中断します。
+- 招待リンクの有効期限はデフォルトで24時間です。`invitation-expiration-hours`で1〜168時間の範囲に変更できます。
 
 ## Local Testing
 
