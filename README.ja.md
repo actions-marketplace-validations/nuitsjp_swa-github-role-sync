@@ -131,14 +131,15 @@ jobs:
 
 ### Cleanup Discussions Inputs
 
-| Name                       | Required | Default                                              | Description                                                                     |
-| -------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `github-token`             | true     | –                                                    | Discussionを削除するためのトークン。                                            |
-| `target-repo`              | false    | 現在の`owner/repo`                                   | Discussionを削除する対象リポジトリ。                                            |
-| `discussion-category-name` | true     | –                                                    | 削除対象のDiscussionが含まれるカテゴリ名。                                      |
-| `expiration-hours`         | false    | `168`                                                | 作成からこの時間を経過したDiscussionを削除対象とする。                          |
-| `cleanup-mode`             | false    | `expiration`                                         | `expiration`（デフォルト）は期限切れのみ、`immediate`は即時削除する。           |
-| `discussion-title-template`| false    | `SWA access invites for {swaName} ({repo}) - {date}` | 削除対象を特定するためのタイトルテンプレート（正規表現マッチングに使用される）。|
+| Name                        | Required | Default                                              | Description                                                                      |
+| --------------------------- | -------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `github-token`              | true     | –                                                    | Discussionを削除するためのトークン。                                             |
+| `target-repo`               | false    | 現在の`owner/repo`                                   | Discussionを削除する対象リポジトリ。                                             |
+| `discussion-category-name`  | true     | –                                                    | 削除対象のDiscussionが含まれるカテゴリ名。                                       |
+| `expiration-hours`          | false    | `168`                                                | 作成からこの時間を経過したDiscussionを削除対象とする。                           |
+| `cleanup-mode`              | false    | `expiration`                                         | `expiration`（デフォルト）は期限切れのみ、`immediate`は即時削除する。            |
+| `discussion-title-template` | false    | `SWA access invites for {swaName} ({repo}) - {date}` | 削除対象を特定するためのタイトルテンプレート（正規表現マッチングに使用される）。 |
+
 ## Outputs
 
 | Name             | Description                           |

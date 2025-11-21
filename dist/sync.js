@@ -32573,7 +32573,7 @@ function assertWithinSwaRoleLimit(users) {
 function parseInvitationExpirationHours(input) {
     const trimmed = input.trim();
     if (!trimmed) {
-        return 24;
+        return 168;
     }
     const hours = Number(trimmed);
     if (!Number.isFinite(hours) ||

@@ -32145,9 +32145,10 @@ function getInputs() {
         discussionCategoryName: coreExports.getInput('discussion-category-name', {
             required: true
         }),
-        expirationHours: parseInt(coreExports.getInput('expiration-hours') || '24', 10),
+        expirationHours: parseInt(coreExports.getInput('expiration-hours') || '168', 10),
         discussionTitleTemplate: coreExports.getInput('discussion-title-template') ||
-            'SWA access invites for {swaName} ({repo}) - {date}'
+            'SWA access invites for {swaName} ({repo}) - {date}',
+        cleanupMode: coreExports.getInput('cleanup-mode') || 'expiration'
     };
 }
 /**
@@ -32229,7 +32230,7 @@ async function run() {
         let deletedCount = 0;
         for (const discussion of discussions) {
             const createdAt = new Date(discussion.createdAt);
-            const isExpired = createdAt < expirationDate;
+            const isExpired = inputs.cleanupMode === 'immediate' ? true : createdAt < expirationDate;
             const isMatch = titleRegex.test(discussion.title);
             if (isExpired && isMatch) {
                 coreExports.info(`Deleting expired discussion: "${discussion.title}" (${discussion.url}) created at ${discussion.createdAt}`);
