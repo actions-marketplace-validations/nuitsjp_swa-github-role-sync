@@ -70,7 +70,7 @@ type SyncContext = Inputs & {
 type SyncResults = {
   repoFullName: string
   swaName: string
-  discussionUrl: string
+  discussionUrls: string[]
   summaryMarkdown: string
   added: InvitationResult[]
   updated: UpdateResult[]
@@ -125,12 +125,18 @@ function getInputs(): Inputs {
     }),
     discussionTitleTemplate:
       core.getInput('discussion-title-template') ||
-      'SWA access invites for {swaName} ({repo}) - {date}',
+      'SWA access invite for @{login} ({swaName}) - {date}',
     discussionBodyTemplate:
       core.getInput('discussion-body-template') ||
-      `This discussion contains SWA access invite links for **{swaName}** from **{repo}**.
+      `Hi @{login},
 
-{summaryMarkdown}`
+You now have **{role}** access to **{swaName}** from **{repo}**.
+
+- Invite link: {inviteUrl}
+- Role: {role}
+- Expires in: {invitationExpirationHours} hours
+
+Use the invite link above to authenticate. After you confirm access, close this discussion so the admins know you're done. If the invite expired, comment here and we'll re-run the sync.`
   }
 }
 
@@ -170,7 +176,7 @@ function buildFailureSummary(
       added: state.added,
       updated: state.updated,
       removed: state.removed,
-      discussionUrl: state.discussionUrl,
+      discussionUrl: state.discussionUrls[0],
       status: 'failure',
       failureMessage
     })
@@ -295,7 +301,7 @@ async function executeSyncPlan(context: SyncContext): Promise<SyncResults> {
     return {
       repoFullName: context.repoFullName,
       swaName: context.swaName,
-      discussionUrl: '',
+      discussionUrls: [],
       summaryMarkdown: syncSummaryMarkdown,
       added,
       updated,
@@ -303,11 +309,25 @@ async function executeSyncPlan(context: SyncContext): Promise<SyncResults> {
     }
   }
 
-  const templateValues = {
+  if (!added.length) {
+    core.info('No new SWA invites detected; skipping discussion creation.')
+    return {
+      repoFullName: context.repoFullName,
+      swaName: context.swaName,
+      discussionUrls: [],
+      summaryMarkdown: syncSummaryMarkdown,
+      added,
+      updated,
+      removed
+    }
+  }
+
+  const baseTemplateValues = {
     swaName: context.swaName,
     repo: context.repoFullName,
     date: today(),
-    summaryMarkdown: syncSummaryMarkdown
+    summaryMarkdown: syncSummaryMarkdown,
+    invitationExpirationHours: String(context.invitationExpirationHours)
   }
 
   const missingTemplateKeys = new Set<string>()
@@ -315,20 +335,43 @@ async function executeSyncPlan(context: SyncContext): Promise<SyncResults> {
     missingTemplateKeys.add(key)
   }
 
-  const discussionTitle = fillTemplate(
-    context.discussionTitleTemplate,
-    templateValues,
-    { onMissingKey }
-  )
-  const discussionBodyTemplate = context.discussionBodyTemplate
-  const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
-    onMissingKey
-  })
+  const discussionUrls: string[] = []
 
-  if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
-    core.warning(
-      'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
+  for (const invite of added) {
+    const templateValues = {
+      ...baseTemplateValues,
+      login: invite.login,
+      role: invite.role,
+      inviteUrl: invite.inviteUrl
+    }
+    const discussionTitle = fillTemplate(
+      context.discussionTitleTemplate,
+      templateValues,
+      { onMissingKey }
     )
+    const discussionBody = fillTemplate(
+      context.discussionBodyTemplate,
+      templateValues,
+      { onMissingKey }
+    )
+
+    try {
+      const discussionUrl = await createDiscussion(
+        context.githubToken,
+        context.owner,
+        context.repo,
+        context.discussionCategoryName,
+        discussionTitle,
+        discussionBody,
+        context.categoryIds
+      )
+      discussionUrls.push(discussionUrl)
+      invite.discussionUrl = discussionUrl
+      core.info(`Created Discussion for @${invite.login}: ${discussionUrl}`)
+    } catch (error) {
+      const message = toErrorMessage(error)
+      throw new Error(`Failed to create Discussion: ${message}`)
+    }
   }
 
   if (missingTemplateKeys.size) {
@@ -339,40 +382,24 @@ async function executeSyncPlan(context: SyncContext): Promise<SyncResults> {
     )
   }
 
-  try {
-    const discussionUrl = await createDiscussion(
-      context.githubToken,
-      context.owner,
-      context.repo,
-      context.discussionCategoryName,
-      discussionTitle,
-      discussionBody,
-      context.categoryIds
-    )
-    core.info(`Created Discussion: ${discussionUrl}`)
+  const summaryMarkdown = buildSummaryMarkdown({
+    repo: context.repoFullName,
+    swaName: context.swaName,
+    added,
+    updated,
+    removed,
+    discussionUrl: discussionUrls[0],
+    status: 'success'
+  })
 
-    const summaryMarkdown = buildSummaryMarkdown({
-      repo: context.repoFullName,
-      swaName: context.swaName,
-      added,
-      updated,
-      removed,
-      discussionUrl,
-      status: 'success'
-    })
-
-    return {
-      repoFullName: context.repoFullName,
-      swaName: context.swaName,
-      discussionUrl,
-      summaryMarkdown,
-      added,
-      updated,
-      removed
-    }
-  } catch (error) {
-    const message = toErrorMessage(error)
-    throw new Error(`Failed to create Discussion: ${message}`)
+  return {
+    repoFullName: context.repoFullName,
+    swaName: context.swaName,
+    discussionUrls,
+    summaryMarkdown,
+    added,
+    updated,
+    removed
   }
 }
 
@@ -384,7 +411,9 @@ async function reportResults(results: SyncResults): Promise<void> {
   core.setOutput('added-count', results.added.length)
   core.setOutput('updated-count', results.updated.length)
   core.setOutput('removed-count', results.removed.length)
-  core.setOutput('discussion-url', results.discussionUrl)
+  const discussionUrls = results.discussionUrls
+  core.setOutput('discussion-url', discussionUrls[0] ?? '')
+  core.setOutput('discussion-urls', discussionUrls.join('\n'))
 }
 
 /**
@@ -406,7 +435,7 @@ export async function run(): Promise<void> {
   const state: SyncResults = {
     repoFullName: '',
     swaName: 'unknown',
-    discussionUrl: '',
+    discussionUrls: [],
     summaryMarkdown: '',
     added: [],
     updated: [],

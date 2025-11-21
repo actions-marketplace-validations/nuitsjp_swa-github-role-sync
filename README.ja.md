@@ -9,7 +9,8 @@
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?logo=dependabot)](https://github.com/nuitsjp/swa-github-role-sync/network/updates)
 
 Azure Static Web Apps（SWA）のユーザー/ロールを、対象GitHubリポジトリの`admin` /
-`write`権限ユーザーと同期し、招待リンクをまとめたDiscussionを自動作成する再利用可能なJavaScript
+`write`権限ユーザーと同期し、招待リンクをユーザーごとのDiscussionとして通知しつつ、集計結果をGitHub
+ActionsのJobサマリーに掲載する再利用可能なJavaScript
 Actionです。SWAへのアクセス管理を「GitHubリポジトリ権限のスナップショット」として扱い、Pull
 Requestやブランチ保護の運用と整合させたいケースを想定しています。
 
@@ -25,14 +26,14 @@ CLI（`az staticwebapp ...`）を組み合わせ、次のフローを1ステッ�
 2. SWAに登録されているGitHubプロバイダーのユーザー・ロールを取得する。
 3. GitHub側をソース・オブ・トゥルースとみなし、追加/更新/削除すべきユーザーの差分プランを生成する。
 4. 必要なユーザーを`az staticwebapp users invite|update`で反映し、招待リンクをmarkdownサマリにまとめる。
-5. Discussionを新規作成し、生成した招待リンクと同期結果を投稿、同じサマリを`GITHUB_STEP_SUMMARY`にも追加する。
+5. 生成した招待リンクを利用者単位のDiscussionとして投稿し、同期結果の総数を`GITHUB_STEP_SUMMARY`にも追加する。
 
 ## Core Features
 
 - GitHub `admin` → SWA任意ロール（デフォルト`github-admin`）、`write/maintain` →
   SWA任意ロール（デフォルト`github-writer`）のマッピング。
 - 既存ロールとの差分判定で、重複招待や意図しないロール変更を抑制。
-- Discussionタイトル・本文のテンプレート差し替えに対応し、日付やリポジトリ名を差し込み可能。
+- Discussionタイトル・本文のテンプレート差し替えに対応し、@{login}や招待URL、日付/リポジトリ名を差し込んで認証完了後にDiscussionを閉じる指示を盛り込める。
 - 成功/失敗にかかわらず`core.summary`へ結果を書き出し、workflow実行ログから状況を即座に把握。
 - `target-repo`で別リポジトリを指定でき、オーガナイゼーション共通のメンバーシップ反映にも利用可能。
 - `cleanup-discussions` Actionにより、有効期限（デフォルト24時間）を過ぎた招待Discussionを自動的にクリーンアップ。
@@ -114,20 +115,20 @@ jobs:
 
 ## Inputs
 
-| Name                          | Required | Default                                              | Description                                                                               |
-| ----------------------------- | -------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `github-token`                | true     | –                                                    | リポジトリのコラボレーターを取得しDiscussionを作成できるトークン。                        |
-| `target-repo`                 | false    | 現在の`owner/repo`                                   | コラボレーターを取得する対象リポジトリ。異なるリポジトリの権限でSWAを管理する場合に指定。 |
-| `swa-name`                    | true     | –                                                    | 対象Static Web App名。                                                                    |
-| `swa-resource-group`          | true     | –                                                    | Static Web Appが属するリソースグループ名。                                                |
-| `swa-domain`                  | false    | SWA既定ホスト名                                      | 招待リンクに含めるカスタムドメイン。省略時は`az staticwebapp show`で解決。                |
-| `invitation-expiration-hours` | false    | `168`                                                | 招待リンクの有効期限（1〜168時間）。                                                      |
-| `role-for-admin`              | false    | `github-admin`                                       | GitHub `admin`に付与するSWAロール名。                                                     |
-| `role-for-write`              | false    | `github-writer`                                      | GitHub `write`/`maintain`に付与するSWAロール名。                                          |
-| `role-prefix`                 | false    | `github-`                                            | 差分対象とするSWAロールのプレフィックス。`role-for-*`で独自ロールを設定する際に指定。     |
-| `discussion-category-name`    | true     | –                                                    | 招待サマリを投稿するDiscussionカテゴリ名。                                                |
-| `discussion-title-template`   | false    | `SWA access invites for {swaName} ({repo}) - {date}` | Discussionタイトルテンプレート。`{swaName}`, `{repo}`, `{date}`を差し込み可能。           |
-| `discussion-body-template`    | false    | See `action.yml`                                     | Discussion本文テンプレート。`{summaryMarkdown}`を含めると同期サマリを挿入。               |
+| Name                          | Required | Default                                               | Description                                                                                                                                        |
+| ----------------------------- | -------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `github-token`                | true     | –                                                     | リポジトリのコラボレーターを取得しDiscussionを作成できるトークン。                                                                                 |
+| `target-repo`                 | false    | 現在の`owner/repo`                                    | コラボレーターを取得する対象リポジトリ。異なるリポジトリの権限でSWAを管理する場合に指定。                                                          |
+| `swa-name`                    | true     | –                                                     | 対象Static Web App名。                                                                                                                             |
+| `swa-resource-group`          | true     | –                                                     | Static Web Appが属するリソースグループ名。                                                                                                         |
+| `swa-domain`                  | false    | SWA既定ホスト名                                       | 招待リンクに含めるカスタムドメイン。省略時は`az staticwebapp show`で解決。                                                                         |
+| `invitation-expiration-hours` | false    | `168`                                                 | 招待リンクの有効期限（1〜168時間）。                                                                                                               |
+| `role-for-admin`              | false    | `github-admin`                                        | GitHub `admin`に付与するSWAロール名。                                                                                                              |
+| `role-for-write`              | false    | `github-writer`                                       | GitHub `write`/`maintain`に付与するSWAロール名。                                                                                                   |
+| `role-prefix`                 | false    | `github-`                                             | 差分対象とするSWAロールのプレフィックス。`role-for-*`で独自ロールを設定する際に指定。                                                              |
+| `discussion-category-name`    | true     | –                                                     | 招待サマリを投稿するDiscussionカテゴリ名。                                                                                                         |
+| `discussion-title-template`   | false    | `SWA access invite for @{login} ({swaName}) - {date}` | Discussionタイトルテンプレート。`{swaName}`, `{repo}`, `{date}`, `{login}`を差し込み可能。                                                         |
+| `discussion-body-template`    | false    | See `action.yml`                                      | Discussion本文テンプレート。`{login}`, `{role}`, `{inviteUrl}`, `{invitationExpirationHours}`、必要に応じて`{summaryMarkdown}`などを差し込み可能。 |
 
 ### Cleanup Discussions Inputs
 
@@ -142,16 +143,17 @@ jobs:
 
 ## Outputs
 
-| Name             | Description                           |
-| ---------------- | ------------------------------------- |
-| `added-count`    | 新規に招待したユーザー数。            |
-| `updated-count`  | 既存ユーザーでロールを更新した人数。  |
-| `removed-count`  | SWAからロールを削除した人数。         |
-| `discussion-url` | 招待サマリを投稿したDiscussionのURL。 |
+| Name              | Description                                                      |
+| ----------------- | ---------------------------------------------------------------- |
+| `added-count`     | 新規に招待したユーザー数。                                       |
+| `updated-count`   | 既存ユーザーでロールを更新した人数。                             |
+| `removed-count`   | SWAからロールを削除した人数。                                    |
+| `discussion-url`  | 最初に作成した招待DiscussionのURL（互換のため存続）。            |
+| `discussion-urls` | すべての招待Discussion URL（改行区切り、招待が無ければ空文字）。 |
 
 ## Usage Notes
 
-- Discussion本文テンプレートに`{summaryMarkdown}`が含まれない場合は警告が出力され、`GITHUB_STEP_SUMMARY`でのみ結果を確認できます。
+- 招待ごとにDiscussionが作成され、集計件数は`GITHUB_STEP_SUMMARY`に表示されるため、利用者への案内と管理者向けサマリーを使い分けてください。
 - `target-repo`を他リポジトリに向ける際は`github-token`に対象リポジトリへアクセス可能なPATをセットしてください。
 - 差分ロジックは`role-prefix`で指定したプレフィックスに一致するロールのみを同期対象としています。`role-for-*`で独自ロールを指定する場合は同じプレフィックスを使ってください。
 - SWAの仕様によりカスタムロールを割り当て可能なユーザーは25名に制限されています。同期対象が25名を超えた場合、本Actionはエラーで中断します。

@@ -18,7 +18,7 @@ inputs:
   discussion-title-template:
     description: Template string to match discussion titles. Should match the one used in the sync action.
     required: false
-    default: 'SWA access invites for {swaName} ({repo}) - {date}'
+    default: 'SWA access invite for @{login} ({swaName}) - {date}'
   cleanup-mode:
     description: 'Cleanup mode. "expiration" (default) checks expiration time. "immediate" deletes all matching discussions immediately.'
     required: false

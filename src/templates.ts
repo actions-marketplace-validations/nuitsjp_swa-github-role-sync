@@ -62,13 +62,17 @@ export function buildSummaryMarkdown({
   status = 'success',
   failureMessage
 }: SummaryParams): string {
+  const inviteDiscussionCount = added.filter((invite) =>
+    Boolean(invite.discussionUrl)
+  ).length
   const lines: string[] = [
     `- Status: ${status}`,
     `- Repository: ${repo}`,
     `- Static Web App: ${swaName}`,
     `- Added: ${added.length}`,
     `- Updated: ${updated.length}`,
-    `- Removed: ${removed.length}`
+    `- Removed: ${removed.length}`,
+    `- Invite discussions: ${inviteDiscussionCount}`
   ]
 
   if (discussionUrl) {
@@ -87,7 +91,7 @@ export function buildSummaryMarkdown({
         '### Invited users',
         ...added.map(
           (invite) =>
-            `- @${invite.login} (${invite.role}) - [Invite link](${invite.inviteUrl})`
+            `- @${invite.login} (${invite.role}) - [Invite link](${invite.inviteUrl})${invite.discussionUrl ? ` ([Discussion](${invite.discussionUrl}))` : ''}`
         )
       ].join('\n')
     )

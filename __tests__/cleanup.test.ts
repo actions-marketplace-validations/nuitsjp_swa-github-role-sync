@@ -58,7 +58,7 @@ describe('cleanup action', () => {
     inputs.set('expiration-hours', '168')
     inputs.set(
       'discussion-title-template',
-      'SWA access invites for {swaName} ({repo}) - {date}'
+      'SWA access invite for @{login} ({swaName}) - {date}'
     )
   })
 
@@ -78,15 +78,13 @@ describe('cleanup action', () => {
             nodes: [
               {
                 id: 'disc1',
-                title:
-                  'SWA access invites for my-app (owner/repo) - 2023-01-01',
+                title: 'SWA access invite for @alice (my-app) - 2023-01-01',
                 createdAt: '2023-01-01T00:00:00Z', // 期限切れ
                 url: 'https://github.com/owner/repo/discussions/1'
               },
               {
                 id: 'disc2',
-                title:
-                  'SWA access invites for my-app (owner/repo) - 2099-01-01',
+                title: 'SWA access invite for @bob (my-app) - 2099-01-01',
                 createdAt: '2099-01-01T00:00:00Z', // 未来（期限切れでない）
                 url: 'https://github.com/owner/repo/discussions/2'
               },
@@ -167,8 +165,7 @@ describe('cleanup action', () => {
             nodes: [
               {
                 id: 'disc1',
-                title:
-                  'SWA access invites for my-app (owner/repo) - 2099-01-01',
+                title: 'SWA access invite for @alice (my-app) - 2099-01-01',
                 createdAt: '2099-01-01T00:00:00Z', // 未来（期限切れでない）
                 url: 'https://github.com/owner/repo/discussions/1'
               }

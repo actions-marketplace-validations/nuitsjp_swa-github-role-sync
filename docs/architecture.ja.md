@@ -2,7 +2,7 @@
 
 ## 全体像
 
-`swa-github-role-sync`はGitHubリポジトリの権限をAzure Static Web Appsのカスタムロールへ同期し、招待リンクと結果サマリをGitHub DiscussionとJobサマリーに投稿するJavaScript Actionです。エントリーポイントは`src/main.ts`で、TypeScriptソースをRollupで`dist/`にバンドルしGitHub Actionsランナーで実行します。
+`swa-github-role-sync`はGitHubリポジトリの権限をAzure Static Web Appsのカスタムロールへ同期し、招待リンクをユーザーごとのDiscussionに投稿しつつ、集計サマリーをGitHub ActionsのJobサマリーへ出力するJavaScript Actionです。エントリーポイントは`src/main.ts`で、TypeScriptソースをRollupで`dist/`にバンドルしGitHub Actionsランナーで実行します。
 
 ## モジュール役割
 
@@ -49,12 +49,14 @@ sequenceDiagram
     end
   end
   Main->>Templates: buildSummaryMarkdown()
-  alt 差分あり
-    Main->>Templates: fillTemplate() タイトル/本文
-    Main->>GitHub: createDiscussion()
-    Main->>Templates: buildSummaryMarkdown()（Discussion URL付き）
-  else 差分なし
-    Main-->>Main: Discussionは作成しない
+  alt 招待なし
+    Main-->>Main: Discussionは作成しない（更新/削除のみ）
+  else 招待あり
+    loop plan.toAdd
+      Main->>Templates: fillTemplate()（招待ごとのタイトル/本文）
+      Main->>GitHub: createDiscussion()
+    end
+    Main->>Templates: buildSummaryMarkdown()（Discussion URL一覧付き）
   end
   Main->>Actions: setOutput()
   Main->>Actions: core.summary.addRaw()
@@ -87,7 +89,7 @@ sequenceDiagram
 
 - GitHub: REST APIでコラボレーターを取得し、GraphQLでDiscussionカテゴリIDとDiscussion作成を行う。`github-token`入力がすべての呼び出しに使用される。
 - Azure: `execFile`で`az staticwebapp users list/invite/update`や`az staticwebapp show`を実行し、JSON/TSV出力を解析する。プロバイダーは`GitHub`に限定。
-- 出力: `buildSummaryMarkdown`が招待URLや更新/削除リストをMarkdown化し、Discussion本文／`GITHUB_STEP_SUMMARY`の双方で再利用される。
+- 出力: `buildSummaryMarkdown`が招待URLや更新/削除リストをMarkdown化し、`GITHUB_STEP_SUMMARY`で集計を共有する。個別Discussionの本文は`fillTemplate`を通じて`@{login}`や招待リンクを挿入する。
 
 ## 差分ロジックと制約
 

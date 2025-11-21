@@ -16,7 +16,7 @@ function getInputs() {
     expirationHours: parseInt(core.getInput('expiration-hours') || '168', 10),
     discussionTitleTemplate:
       core.getInput('discussion-title-template') ||
-      'SWA access invites for {swaName} ({repo}) - {date}',
+      'SWA access invite for @{login} ({swaName}) - {date}',
     cleanupMode: core.getInput('cleanup-mode') || 'expiration'
   }
 }

@@ -32516,13 +32516,15 @@ function fillTemplate(template, values, options = {}) {
  * @returns Markdown形式のサマリー文字列。
  */
 function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussionUrl, status = 'success', failureMessage }) {
+    const inviteDiscussionCount = added.filter((invite) => Boolean(invite.discussionUrl)).length;
     const lines = [
         `- Status: ${status}`,
         `- Repository: ${repo}`,
         `- Static Web App: ${swaName}`,
         `- Added: ${added.length}`,
         `- Updated: ${updated.length}`,
-        `- Removed: ${removed.length}`
+        `- Removed: ${removed.length}`,
+        `- Invite discussions: ${inviteDiscussionCount}`
     ];
     if (discussionUrl) {
         lines.push(`- Discussion: ${discussionUrl}`);
@@ -32534,7 +32536,7 @@ function buildSummaryMarkdown({ repo, swaName, added, updated, removed, discussi
     if (added.length) {
         sections.push([
             '### Invited users',
-            ...added.map((invite) => `- @${invite.login} (${invite.role}) - [Invite link](${invite.inviteUrl})`)
+            ...added.map((invite) => `- @${invite.login} (${invite.role}) - [Invite link](${invite.inviteUrl})${invite.discussionUrl ? ` ([Discussion](${invite.discussionUrl}))` : ''}`)
         ].join('\n'));
     }
     if (updated.length) {
@@ -32604,11 +32606,17 @@ function getInputs() {
             required: true
         }),
         discussionTitleTemplate: coreExports.getInput('discussion-title-template') ||
-            'SWA access invites for {swaName} ({repo}) - {date}',
+            'SWA access invite for @{login} ({swaName}) - {date}',
         discussionBodyTemplate: coreExports.getInput('discussion-body-template') ||
-            `This discussion contains SWA access invite links for **{swaName}** from **{repo}**.
+            `Hi @{login},
 
-{summaryMarkdown}`
+You now have **{role}** access to **{swaName}** from **{repo}**.
+
+- Invite link: {inviteUrl}
+- Role: {role}
+- Expires in: {invitationExpirationHours} hours
+
+Use the invite link above to authenticate. After you confirm access, close this discussion so the admins know you're done. If the invite expired, comment here and we'll re-run the sync.`
     };
 }
 /**
@@ -32641,7 +32649,7 @@ function buildFailureSummary(state, failureMessage) {
             added: state.added,
             updated: state.updated,
             removed: state.removed,
-            discussionUrl: state.discussionUrl,
+            discussionUrl: state.discussionUrls[0],
             status: 'failure',
             failureMessage
         }));
@@ -32713,62 +32721,80 @@ async function executeSyncPlan(context) {
         return {
             repoFullName: context.repoFullName,
             swaName: context.swaName,
-            discussionUrl: '',
+            discussionUrls: [],
             summaryMarkdown: syncSummaryMarkdown,
             added,
             updated,
             removed
         };
     }
-    const templateValues = {
+    if (!added.length) {
+        coreExports.info('No new SWA invites detected; skipping discussion creation.');
+        return {
+            repoFullName: context.repoFullName,
+            swaName: context.swaName,
+            discussionUrls: [],
+            summaryMarkdown: syncSummaryMarkdown,
+            added,
+            updated,
+            removed
+        };
+    }
+    const baseTemplateValues = {
         swaName: context.swaName,
         repo: context.repoFullName,
         date: today(),
-        summaryMarkdown: syncSummaryMarkdown
+        summaryMarkdown: syncSummaryMarkdown,
+        invitationExpirationHours: String(context.invitationExpirationHours)
     };
     const missingTemplateKeys = new Set();
     const onMissingKey = (key) => {
         missingTemplateKeys.add(key);
     };
-    const discussionTitle = fillTemplate(context.discussionTitleTemplate, templateValues, { onMissingKey });
-    const discussionBodyTemplate = context.discussionBodyTemplate;
-    const discussionBody = fillTemplate(discussionBodyTemplate, templateValues, {
-        onMissingKey
-    });
-    if (!discussionBodyTemplate.includes('{summaryMarkdown}')) {
-        coreExports.warning('discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.');
+    const discussionUrls = [];
+    for (const invite of added) {
+        const templateValues = {
+            ...baseTemplateValues,
+            login: invite.login,
+            role: invite.role,
+            inviteUrl: invite.inviteUrl
+        };
+        const discussionTitle = fillTemplate(context.discussionTitleTemplate, templateValues, { onMissingKey });
+        const discussionBody = fillTemplate(context.discussionBodyTemplate, templateValues, { onMissingKey });
+        try {
+            const discussionUrl = await createDiscussion(context.githubToken, context.owner, context.repo, context.discussionCategoryName, discussionTitle, discussionBody, context.categoryIds);
+            discussionUrls.push(discussionUrl);
+            invite.discussionUrl = discussionUrl;
+            coreExports.info(`Created Discussion for @${invite.login}: ${discussionUrl}`);
+        }
+        catch (error) {
+            const message = toErrorMessage(error);
+            throw new Error(`Failed to create Discussion: ${message}`);
+        }
     }
     if (missingTemplateKeys.size) {
         coreExports.warning(`Unknown template placeholders with no value: ${[
             ...missingTemplateKeys
         ].join(', ')}`);
     }
-    try {
-        const discussionUrl = await createDiscussion(context.githubToken, context.owner, context.repo, context.discussionCategoryName, discussionTitle, discussionBody, context.categoryIds);
-        coreExports.info(`Created Discussion: ${discussionUrl}`);
-        const summaryMarkdown = buildSummaryMarkdown({
-            repo: context.repoFullName,
-            swaName: context.swaName,
-            added,
-            updated,
-            removed,
-            discussionUrl,
-            status: 'success'
-        });
-        return {
-            repoFullName: context.repoFullName,
-            swaName: context.swaName,
-            discussionUrl,
-            summaryMarkdown,
-            added,
-            updated,
-            removed
-        };
-    }
-    catch (error) {
-        const message = toErrorMessage(error);
-        throw new Error(`Failed to create Discussion: ${message}`);
-    }
+    const summaryMarkdown = buildSummaryMarkdown({
+        repo: context.repoFullName,
+        swaName: context.swaName,
+        added,
+        updated,
+        removed,
+        discussionUrl: discussionUrls[0],
+        status: 'success'
+    });
+    return {
+        repoFullName: context.repoFullName,
+        swaName: context.swaName,
+        discussionUrls,
+        summaryMarkdown,
+        added,
+        updated,
+        removed
+    };
 }
 /**
  * Outputsへ同期結果をセットする。
@@ -32778,7 +32804,9 @@ async function reportResults(results) {
     coreExports.setOutput('added-count', results.added.length);
     coreExports.setOutput('updated-count', results.updated.length);
     coreExports.setOutput('removed-count', results.removed.length);
-    coreExports.setOutput('discussion-url', results.discussionUrl);
+    const discussionUrls = results.discussionUrls;
+    coreExports.setOutput('discussion-url', discussionUrls[0] ?? '');
+    coreExports.setOutput('discussion-urls', discussionUrls.join('\n'));
 }
 /**
  * GitHub ActionsのJobサマリーへMarkdownを追記する。
@@ -32798,7 +32826,7 @@ async function run() {
     const state = {
         repoFullName: '',
         swaName: 'unknown',
-        discussionUrl: '',
+        discussionUrls: [],
         summaryMarkdown: '',
         added: [],
         updated: [],

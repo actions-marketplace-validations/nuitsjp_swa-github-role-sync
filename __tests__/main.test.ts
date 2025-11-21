@@ -204,6 +204,10 @@ describe('run', () => {
       'discussion-url',
       'https://github.com/owner/repo/discussions/123'
     )
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-urls',
+      'https://github.com/owner/repo/discussions/123'
+    )
     expect(setFailedMock).not.toHaveBeenCalled()
 
     expect(createDiscussionMock).toHaveBeenCalledWith(
@@ -211,21 +215,75 @@ describe('run', () => {
       'owner',
       'repo',
       'Announcements',
-      'SWA access invites for my-swa (owner/repo) - 2024-01-02',
-      expect.stringContaining(
-        'This discussion contains SWA access invite links'
-      ),
+      expect.any(String),
+      expect.any(String),
       { repositoryId: 'repo-id', categoryId: 'cat-id' }
     )
+
+    const [, , , , discussionTitle, discussionBody] =
+      createDiscussionMock.mock.calls[0]
+    expect(discussionTitle).toBe(
+      'SWA access invite for @alice (my-swa) - 2024-01-02'
+    )
+    expect(discussionBody).toContain('@alice')
+    expect(discussionBody).toContain('Invite link: https://invite/alice')
+    expect(discussionBody).toContain('close this discussion')
 
     expect(summaryAddHeadingMock).toHaveBeenCalledWith('SWA role sync')
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Status: success')
     expect(summaryMarkdown).toContain('Added: 1')
+    expect(summaryMarkdown).toContain('Invite discussions: 1')
     expect(summaryMarkdown).toContain('Updated roles')
     expect(summaryMarkdown).toContain('@alice')
+    expect(summaryMarkdown).toContain(
+      '[Discussion](https://github.com/owner/repo/discussions/123)'
+    )
     expect(summaryMarkdown).toContain('@carol')
     expect(summaryWriteMock).toHaveBeenCalled()
+  })
+
+  it('creates separate discussions for each invite and lists them in outputs', async () => {
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listSwaUsersMock.mockResolvedValue([])
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' },
+      { login: 'bob', role: 'write' }
+    ])
+    inviteUserMock
+      .mockResolvedValueOnce('https://invite/alice')
+      .mockResolvedValueOnce('https://invite/bob')
+    createDiscussionMock
+      .mockResolvedValueOnce('https://github.com/owner/repo/discussions/1')
+      .mockResolvedValueOnce('https://github.com/owner/repo/discussions/2')
+
+    const { run } = await loadMain()
+
+    await run()
+
+    expect(createDiscussionMock).toHaveBeenCalledTimes(2)
+    const firstCall = createDiscussionMock.mock.calls[0]
+    const secondCall = createDiscussionMock.mock.calls[1]
+    expect(firstCall[4]).toContain('@alice')
+    expect(secondCall[4]).toContain('@bob')
+    expect(firstCall[5]).toContain('Invite link: https://invite/alice')
+    expect(secondCall[5]).toContain('Invite link: https://invite/bob')
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-url',
+      'https://github.com/owner/repo/discussions/1'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-urls',
+      [
+        'https://github.com/owner/repo/discussions/1',
+        'https://github.com/owner/repo/discussions/2'
+      ].join('\n')
+    )
+    const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
+    expect(summaryMarkdown).toContain('Invite discussions: 2')
+    expect(summaryMarkdown).toContain(
+      '[Discussion](https://github.com/owner/repo/discussions/2)'
+    )
   })
 
   // Discussion作成がGraphQLエラーで壊れた場合に失敗サマリーを返す
@@ -299,14 +357,16 @@ describe('run', () => {
       'Body for my-swa',
       { repositoryId: 'repo-id', categoryId: 'cat-id' }
     )
-    expect(warningMock).toHaveBeenCalledWith(
-      'discussion-body-template does not include {summaryMarkdown}; sync summary will not be added to the discussion body.'
-    )
+    expect(warningMock).not.toHaveBeenCalled()
     expect(setOutputMock).toHaveBeenCalledWith('added-count', 1)
     expect(setOutputMock).toHaveBeenCalledWith('updated-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith('removed-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith(
       'discussion-url',
+      'https://github.com/owner/repo/discussions/999'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-urls',
       'https://github.com/owner/repo/discussions/999'
     )
   })
@@ -381,9 +441,40 @@ describe('run', () => {
     expect(setOutputMock).toHaveBeenCalledWith('updated-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith('removed-count', 0)
     expect(setOutputMock).toHaveBeenCalledWith('discussion-url', '')
+    expect(setOutputMock).toHaveBeenCalledWith('discussion-urls', '')
     const summaryMarkdown = summaryAddRawMock.mock.calls[0][0] as string
     expect(summaryMarkdown).toContain('Status: success')
     expect(summaryMarkdown).toContain('Added: 0')
+  })
+
+  it('avoids discussion creation when only updates are required', async () => {
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' },
+      { login: 'bob', role: 'write' }
+    ])
+    listSwaUsersMock.mockResolvedValue([
+      { userDetails: 'alice', roles: 'github-admin', provider: 'GitHub' },
+      { userDetails: 'bob', roles: 'github-admin', provider: 'GitHub' }
+    ])
+    updateUserRolesMock.mockResolvedValue(undefined)
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(inviteUserMock).not.toHaveBeenCalled()
+    expect(updateUserRolesMock).toHaveBeenCalledWith(
+      'my-swa',
+      'my-rg',
+      'bob',
+      'github-writer'
+    )
+    expect(createDiscussionMock).not.toHaveBeenCalled()
+    expect(infoMock).toHaveBeenCalledWith(
+      'No new SWA invites detected; skipping discussion creation.'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith('discussion-url', '')
+    expect(setOutputMock).toHaveBeenCalledWith('discussion-urls', '')
   })
 
   // Discussionテンプレート内の不足プレースホルダーを警告できるかを確認
@@ -518,9 +609,7 @@ describe('run', () => {
   // Discussion作成が文字列など非Errorで失敗した際にメッセージを補足する
   it('propagates non-Error causes from discussion creation', async () => {
     getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
-    listSwaUsersMock.mockResolvedValue([
-      { userDetails: 'alice', provider: 'GitHub' }
-    ])
+    listSwaUsersMock.mockResolvedValue([])
     listEligibleCollaboratorsMock.mockResolvedValue([
       { login: 'alice', role: 'admin' }
     ])

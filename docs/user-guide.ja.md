@@ -46,18 +46,18 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 
 ## Inputs Reference
 
-| Input                               | 説明                                                                          | 推奨値                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `invitation-expiration-hours`       | 招待リンクの有効期限（1〜168時間）。                                          | `168`                                                           |
-| `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                    | `secrets.GITHUB_TOKEN`（デフォルト）またはリモートrepo対象のPAT |
-| `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                  | 省略でカレントrepoを使用                                        |
-| `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                               | Azureポータルの正確な名称                                       |
-| `swa-domain`                        | 招待リンクのドメイン。                                                        | カスタムドメイン運用時に必須、無ければ省略                      |
-| `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                 | `github-admin`, `github-writer`                                 |
-| `role-prefix`                       | 同期対象とするSWAロールのプレフィックス。                                     | `github-`                                                       |
-| `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                              | `Announcements`など利用者に通知が届くカテゴリ                   |
-| `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                 | `SWA access invites for {swaName} ({repo}) - {date}`            |
-| `discussion-body-template`          | Discussion本文。`{summaryMarkdown}`を含めるとAction生成サマリが埋め込まれる。 | デフォルトテンプレートを推奨                                    |
+| Input                               | 説明                                                                                                                | 推奨値                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `invitation-expiration-hours`       | 招待リンクの有効期限（1〜168時間）。                                                                                | `168`                                                           |
+| `github-token`                      | コラボレーター取得とDiscussion作成に利用。                                                                          | `secrets.GITHUB_TOKEN`（デフォルト）またはリモートrepo対象のPAT |
+| `target-repo`                       | 他リポジトリの権限を同期元にする場合に指定。                                                                        | 省略でカレントrepoを使用                                        |
+| `swa-name` / `swa-resource-group`   | 対象SWAを特定。                                                                                                     | Azureポータルの正確な名称                                       |
+| `swa-domain`                        | 招待リンクのドメイン。                                                                                              | カスタムドメイン運用時に必須、無ければ省略                      |
+| `role-for-admin` / `role-for-write` | GitHub権限に応じて割り当てるSWAロール文字列。                                                                       | `github-admin`, `github-writer`                                 |
+| `role-prefix`                       | 同期対象とするSWAロールのプレフィックス。                                                                           | `github-`                                                       |
+| `discussion-category-name`          | 招待サマリを掲示するカテゴリ名。                                                                                    | `Announcements`など利用者に通知が届くカテゴリ                   |
+| `discussion-title-template`         | Discussionタイトル。`{swaName}`/`{repo}`/`{date}`を差し込み。                                                       | `SWA access invites for {swaName} ({repo}) - {date}`            |
+| `discussion-body-template`          | Discussion本文。`{login}`, `{role}`, `{inviteUrl}`, `{invitationExpirationHours}`などを使って招待手順を案内できる。 | デフォルトテンプレートを推奨                                    |
 
 ## Step-by-Step Setup
 
@@ -201,13 +201,13 @@ SWAごとの通知文面を柔軟に変えられるよう、Discussionタイト�
 
 #### 4.1 GitHub CLIでテンプレート変数を登録
 
-以下の例では、シンプルなタイトルテンプレートと、`{summaryMarkdown}`でAction生成サマリを埋め込みつつ、リポジトリ名と生成日時を記載する本文テンプレートを登録しています。
+以下の例では、`@{login}`や招待リンク、期限を差し込みつつ、「サインイン後にDiscussionを閉じる」運用を促すテンプレートを登録しています。
 
 ```bash
 gh variable set DISCUSSION_TITLE_TEMPLATE \
-  --body 'SWAロール同期（{swaName}／{repo}）{date}'
+  --body 'SWAロール招待 @{login}（{swaName}）{date}'
 
-gh variable set DISCUSSION_BODY_TEMPLATE --body $'## {swaName}ロール同期結果\n{summaryMarkdown}\n\n- 対象リポジトリ：{repo}\n- 実行日時：{date}'
+gh variable set DISCUSSION_BODY_TEMPLATE --body $'@{login}さん\n\n- ロール: {role}\n- 招待リンク: {inviteUrl}\n- 有効期限: {invitationExpirationHours}時間\n\nリンクからサインインできたらこのDiscussionをクローズしてください。期限切れの場合はコメントで再発行をリクエストできます。'
 ```
 
 マルチライン文字列を扱うため、本文テンプレートでは`$'...'`構文を利用しています。既存テンプレートを更新したい場合も同じコマンドを再実行するだけで済み、workflowファイルを変更する必要はありません。
@@ -302,13 +302,13 @@ jobs:
 - **複数SWA運用**:
   SWAごとに別workflowを準備し、`swa-*`入力とDiscussionカテゴリを分ける。共通`target-repo`であれば同じGitHub権限集合を使い回せる。
 - **Dry
-  Run**: 新しいテンプレートを導入する際は`discussion-body-template`に`{summaryMarkdown}`が含まれているか確認したうえで`workflow_dispatch`を使ってPreview。
+  Run**: 新しいテンプレートを導入する際は`workflow_dispatch`で試走し、招待用DiscussionとJobサマリーの両方が期待どおりか確認する。
 
 ## Discussion Template Tips
 
-- タイトルに`{date}`を入れると実行日がISO形式（YYYY-MM-DD）で付与され、履歴を追跡しやすくなります。
-- 本文テンプレート内でカスタムセクションを設けたい場合は、`{summaryMarkdown}`の上下に自由に案内文を追加してください。
-- `{summaryMarkdown}`を削除した場合は`GITHUB_STEP_SUMMARY`の出力だけで状況を把握することになるため、Discussions閲覧者だけで完結したい場合は必ず残してください。
+- タイトルに`@{login}`と`{date}`を入れると宛先と実行日が一目で分かり、複数の招待を整理しやすくなります。
+- 本文では`{role}`, `{inviteUrl}`, `{invitationExpirationHours}`とあわせて「サインイン後にDiscussionを閉じる」「期限切れ時はコメントする」といった運用ルールを書き込みましょう。
+- 集計値は`GITHUB_STEP_SUMMARY`で確認できるため、Discussion本文には必要最低限の案内だけを残し、管理者向けの詳細はサマリーに任せる構成がおすすめです。
 
 ## Troubleshooting
 
@@ -329,7 +329,7 @@ jobs:
 `role-prefix`に一致しないロールは差分計算から除外されるため、手動追加したロールを残したい場合は別のプレフィックスを使うか、対象ロールのみ`role-prefix`に合わせるよう命名規則を調整してください。
 
 **Q3. Discussionを作成せずに実行できますか?**  
-いいえ。現状のActionは同期結果をDiscussionにも投稿することを前提にしています。もし不要な場合はテンプレートに`{summaryMarkdown}`を含めつつクローズドカテゴリへ投稿する運用を推奨します。
+いいえ。現状のActionは新規招待ごとにDiscussionを作成し、そこから利用者へ連絡することを前提にしています。もし一般公開したくない場合は限定カテゴリを用意するか、クローズドリポジトリで実行したうえで`cleanup-discussions`を合わせて運用してください。
 
 **Q4. 招待リンクの有効期限は変更できますか?**  
 `invitation-expiration-hours`入力で1〜168時間（デフォルト24時間）の範囲で指定できます。長期アクセスが必要な場合でも、セキュリティの観点から短めの期限で定期的に発行する運用を推奨します。

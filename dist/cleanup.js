@@ -32147,7 +32147,7 @@ function getInputs() {
         }),
         expirationHours: parseInt(coreExports.getInput('expiration-hours') || '168', 10),
         discussionTitleTemplate: coreExports.getInput('discussion-title-template') ||
-            'SWA access invites for {swaName} ({repo}) - {date}',
+            'SWA access invite for @{login} ({swaName}) - {date}',
         cleanupMode: coreExports.getInput('cleanup-mode') || 'expiration'
     };
 }

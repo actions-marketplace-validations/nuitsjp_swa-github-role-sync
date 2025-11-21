@@ -67,6 +67,8 @@ export type InvitationResult = {
   role: string
   /** 招待URL */
   inviteUrl: string
+  /** 個別招待DiscussionのURL */
+  discussionUrl?: string
 }
 
 /** ロール更新結果 */

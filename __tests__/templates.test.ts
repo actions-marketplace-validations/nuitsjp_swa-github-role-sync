@@ -41,10 +41,16 @@ describe('buildSummaryMarkdown', () => {
       repo: 'owner/repo',
       swaName: 'my-swa',
       added: [
-        { login: 'alice', role: 'github-admin', inviteUrl: 'https://url' }
+        {
+          login: 'alice',
+          role: 'github-admin',
+          inviteUrl: 'https://url',
+          discussionUrl: 'https://github.com/owner/repo/discussions/42'
+        }
       ],
       updated: [{ login: 'bob', role: 'github-writer' }],
-      removed: [{ login: 'carol' }]
+      removed: [{ login: 'carol' }],
+      discussionUrl: 'https://github.com/owner/repo/discussions/42'
     })
 
     expect(markdown).toContain('Status: success')
@@ -53,8 +59,12 @@ describe('buildSummaryMarkdown', () => {
     expect(markdown).toContain('Added: 1')
     expect(markdown).toContain('Updated: 1')
     expect(markdown).toContain('Removed: 1')
+    expect(markdown).toContain('Invite discussions: 1')
     expect(markdown).toContain('@alice')
     expect(markdown).toContain('[Invite link](https://url)')
+    expect(markdown).toContain(
+      '[Discussion](https://github.com/owner/repo/discussions/42)'
+    )
     expect(markdown).toContain('Updated roles')
     expect(markdown).toContain('Removed users')
   })
@@ -73,6 +83,7 @@ describe('buildSummaryMarkdown', () => {
     })
 
     expect(markdown).toContain('Status: failure')
+    expect(markdown).toContain('Invite discussions: 0')
     expect(markdown).toContain(
       'Discussion: https://github.com/owner/repo/discussions/1'
     )

@@ -59,18 +59,24 @@ inputs:
     required: true
 
   discussion-title-template:
-    description: 'Template for discussion title. Placeholders: {swaName}, {repo}, {date}.'
+    description: 'Template for discussion title. Placeholders: {swaName}, {repo}, {date}, {login}.'
     required: false
-    default: SWA access invites for {swaName} ({repo}) - {date}
+    default: SWA access invite for @{login} ({swaName}) - {date}
 
   discussion-body-template:
     description: |
-      Template for discussion body. Placeholders: {swaName}, {repo}, {summaryMarkdown}.
+      Template for discussion body. Placeholders: {swaName}, {repo}, {summaryMarkdown}, {login}, {role}, {inviteUrl}, {invitationExpirationHours}.
     required: false
     default: |
-      This discussion contains SWA access invite links for **{swaName}** from **{repo}**.
+      Hi @{login},
 
-      {summaryMarkdown}
+      You now have **{role}** access to **{swaName}** from **{repo}**.
+
+      - Invite link: {inviteUrl}
+      - Role: {role}
+      - Expires in: {invitationExpirationHours} hours
+
+      Use the invite link above to authenticate. After you confirm access, close this discussion so the admins know you're done. If the invite expired, comment here and we'll re-run the sync.
 
 runs:
   using: node20
@@ -84,4 +90,6 @@ outputs:
   removed-count:
     description: Number of users removed from SWA roles.
   discussion-url:
-    description: URL of the created Discussion containing invite links.
+    description: URL of the first created Discussion (kept for backward compatibility).
+  discussion-urls:
+    description: Newline-separated URLs of every invite Discussion (empty when no invites).
