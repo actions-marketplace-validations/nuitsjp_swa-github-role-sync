@@ -1,0 +1,24 @@
+name: Cleanup Expired Discussions
+description: Delete SWA invitation discussions that have exceeded their expiration time.
+author: Atsushi Nakamura
+inputs:
+  github-token:
+    description: GitHub Token for authentication.
+    required: true
+  target-repo:
+    description: Target repository in "owner/repo" format. Defaults to the current repository.
+    required: false
+  discussion-category-name:
+    description: Name of the Discussion category to search in.
+    required: true
+  expiration-hours:
+    description: Hours after creation to consider a discussion expired.
+    required: false
+    default: '24'
+  discussion-title-template:
+    description: Template string to match discussion titles. Should match the one used in the sync action.
+    required: false
+    default: 'SWA access invites for {swaName} ({repo}) - {date}'
+runs:
+  using: node20
+  main: ../dist/cleanup.js
