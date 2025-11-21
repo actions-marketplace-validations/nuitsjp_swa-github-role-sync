@@ -11,6 +11,7 @@
 - `src/azure.ts`: `az staticwebapp ...`コマンド呼び出しをラップし、SWAユーザー取得と招待/ロール更新/削除を実行。
 - `src/plan.ts`: GitHub側希望状態とSWA現状から招待・更新・削除の差分プランを生成（ロール接頭辞の正規化や大小文字差異を吸収）。
 - `src/templates.ts`: Discussionテンプレート埋め込みと同期サマリーMarkdown生成を担当。
+- `src/cleanup.ts`: 有効期限切れのDiscussionを特定し、削除を実行するクリーンアップロジック。
 - `src/types.ts`: GitHubロールやSWAユーザー、差分プランの型定義。
 
 ## 呼び出しシーケンス（正常系）
@@ -60,6 +61,27 @@ sequenceDiagram
 ```
 
 エラー発生時は`catch`でサマリーを`status: failure`に差し替え、`core.setFailed`でジョブを失敗させます。Discussion作成前に失敗した場合でもJobサマリーには結果が残ります。
+
+## クリーンアップアクションのシーケンス
+
+```mermaid
+sequenceDiagram
+  participant Cleanup as cleanup.ts
+  participant GitHub as github.ts
+  participant API as GitHub GraphQL API
+
+  Cleanup->>Actions: getInputs()
+  Cleanup->>GitHub: getDiscussionCategoryId()
+  Cleanup->>API: query discussions (first 100)
+  loop 各Discussion
+    Cleanup->>Cleanup: タイトル正規表現マッチ確認
+    Cleanup->>Cleanup: 作成日時とexpiration-hours比較
+    alt 期限切れ
+      Cleanup->>API: deleteDiscussion()
+    end
+  end
+  Cleanup->>Actions: setOutput()
+```
 
 ## データフローと外部API
 

@@ -13,6 +13,8 @@
 ## 開発フロー（TDD）
 
 1. **RED**: 期待する振る舞いを`__tests__/`配下にテストとして追加し、失敗を確認します。
+   - 同期アクション: `__tests__/main.test.ts`
+   - クリーンアップアクション: `__tests__/cleanup.test.ts`
 2. **GREEN**: `src/`の最小限の実装でテストを通します。
 3. **REFACTOR**: 重複や命名を整え、テストとLintを再実行して安全性を担保します。
 
@@ -26,7 +28,7 @@
 | `npm run lint`         | ESLint（TypeScript/Prettier設定）を実行                 |
 | `npm test`             | Jest（ESMモード）でユニットテストを実施                 |
 | `npm run verify`       | formatチェック+Lint+テスト+`dist`差分確認をまとめて実行 |
-| `npm run package`      | Rollupで`dist/`を再生成（CIと同じビルド）               |
+| `npm run package`      | Rollupで`dist/sync.js`と`dist/cleanup.js`を再生成       |
 | `npm run bundle`       | フォーマット済みの状態で`dist/`を再生成                 |
 | `npm run local-action` | `.env`の入力値を使ってローカルでActionを試行            |
 
@@ -35,6 +37,7 @@
 ## ローカル検証のポイント
 
 - `.env`にAction入力（`github-token`やSWA設定）を記載し、`npm run local-action`で本番と同じエントリーポイント（`src/main.ts`）を動かせます。Azure/GitHubへの書き込みを伴うため、検証用リソースで行ってください。
+  - クリーンアップアクションを試す場合は、`local-action`スクリプトを修正して`src/cleanup-entry.ts`を指すようにするか、直接`ts-node`等で実行する必要があります（現状`local-action`はメインアクション用です）。
 - 差分やロール判定ロジックは`__tests__/`のテーブル駆動テストを参考にケースを追加すると理解しやすくなります。
 - CLIやGraphQL周りの関数はモック可能な形で切り出しているので、外部アクセスはテストで差し替えてください。
 

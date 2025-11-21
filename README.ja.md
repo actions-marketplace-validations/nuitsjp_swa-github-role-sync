@@ -13,6 +13,8 @@ Azure Static Web Apps（SWA）のユーザー/ロールを、対象GitHubリポ�
 Actionです。SWAへのアクセス管理を「GitHubリポジトリ権限のスナップショット」として扱い、Pull
 Requestやブランチ保護の運用と整合させたいケースを想定しています。
 
+また、有効期限切れの招待Discussionを自動削除する `cleanup-discussions` Actionも同梱しており、招待リンクのライフサイクル管理を完結させることができます。
+
 ## Overview
 
 このActionは、GitHub REST/GraphQL APIとAzure
@@ -33,6 +35,7 @@ CLI（`az staticwebapp ...`）を組み合わせ、次のフローを1ステッ�
 - Discussionタイトル・本文のテンプレート差し替えに対応し、日付やリポジトリ名を差し込み可能。
 - 成功/失敗にかかわらず`core.summary`へ結果を書き出し、workflow実行ログから状況を即座に把握。
 - `target-repo`で別リポジトリを指定でき、オーガナイゼーション共通のメンバーシップ反映にも利用可能。
+- `cleanup-discussions` Actionにより、有効期限（デフォルト24時間）を過ぎた招待Discussionを自動的にクリーンアップ。
 
 ## Prerequisites
 
@@ -94,6 +97,19 @@ jobs:
           swa-name: my-swa-app
           swa-resource-group: rg-app-prod
           discussion-category-name: Announcements
+
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      discussions: write
+    steps:
+      - name: Cleanup expired discussions
+        uses: nuitsjp/swa-github-role-sync/cleanup-discussions@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          target-repo: my-org/my-repo
+          discussion-category-name: Announcements
+          expiration-hours: 24
 ```
 
 ## Inputs
@@ -113,6 +129,15 @@ jobs:
 | `discussion-title-template`   | false    | `SWA access invites for {swaName} ({repo}) - {date}` | Discussionタイトルテンプレート。`{swaName}`, `{repo}`, `{date}`を差し込み可能。           |
 | `discussion-body-template`    | false    | See `action.yml`                                     | Discussion本文テンプレート。`{summaryMarkdown}`を含めると同期サマリを挿入。               |
 
+### Cleanup Discussions Inputs
+
+| Name                       | Required | Default                                              | Description                                                                     |
+| -------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `github-token`             | true     | –                                                    | Discussionを削除するためのトークン。                                            |
+| `target-repo`              | false    | 現在の`owner/repo`                                   | Discussionを削除する対象リポジトリ。                                            |
+| `discussion-category-name` | true     | –                                                    | 削除対象のDiscussionが含まれるカテゴリ名。                                      |
+| `expiration-hours`         | false    | `24`                                                 | 作成からこの時間を経過したDiscussionを削除対象とする。                          |
+| `discussion-title-template`| false    | `SWA access invites for {swaName} ({repo}) - {date}` | 削除対象を特定するためのタイトルテンプレート（正規表現マッチングに使用される）。|
 ## Outputs
 
 | Name             | Description                           |

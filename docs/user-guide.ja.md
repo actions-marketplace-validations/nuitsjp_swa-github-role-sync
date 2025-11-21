@@ -21,6 +21,8 @@ Actionを利用してアクセス権を自動同期し、招待リンクを利�
 3. **複数SWAへの展開**: 同じActionを複数workflowで使い分けることで、検証/本番や複数リージョンのSWAを個別に同期できます。
 4. **テンプレートによる通知**:
    Discussionのタイトル/本文テンプレートを変更し、組織ルールに沿った告知方法へ簡単に適応できます。
+5. **招待リンクのクリーンアップ**:
+   `cleanup-discussions` Actionを併用することで、有効期限切れの招待Discussionを自動的に削除し、セキュリティリスクや混乱を低減できます。
 
 ## Prerequisites
 
@@ -259,6 +261,36 @@ CLI経由で完結でき、レビュー負荷を抑えたままチームに合�
 ### 6. スケジュール化
 
 問題なければ`schedule`トリガーを追加し、週次/平日日次など組織の棚卸し周期に合わせてcron式を設定します。即時反映したい場合は`push`や`pull_request`イベントと併用することもできます。
+
+### 7. Cleanup Workflowの追加（推奨）
+
+招待リンクの有効期限が切れたDiscussionを残しておくと、ユーザーが誤ってアクセスして混乱する原因になります。`cleanup-discussions` Actionを使って定期的に削除することを推奨します。
+
+`.github/workflows/cleanup-discussions.yml`を作成します：
+
+```yaml
+name: Cleanup expired discussions
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 毎日実行
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      discussions: write
+    steps:
+      - name: Cleanup expired discussions
+        uses: nuitsjp/swa-github-role-sync/cleanup-discussions@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          discussion-category-name: Announcements
+          expiration-hours: 24 # 同期Actionの有効期限設定に合わせる
+```
+
+`discussion-title-template`を変更している場合は、このActionにも同じテンプレートを指定して、削除対象を正しく特定できるようにしてください。
 
 ## Recommended Workflow Patterns
 
