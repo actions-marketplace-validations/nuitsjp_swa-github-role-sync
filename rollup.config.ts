@@ -14,16 +14,6 @@ const config = [
       sourcemap: true
     },
     plugins: [typescript(), nodeResolve({ preferBuiltins: true }), commonjs()]
-  },
-  {
-    input: 'src/cleanup-entry.ts',
-    output: {
-      esModule: true,
-      file: 'dist/cleanup.js',
-      format: 'es',
-      sourcemap: true
-    },
-    plugins: [typescript(), nodeResolve({ preferBuiltins: true }), commonjs()]
   }
 ]
 

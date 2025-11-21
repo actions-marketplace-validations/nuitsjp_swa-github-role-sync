@@ -19,7 +19,7 @@ Requestやブランチ保護の運用と整合させたいケースを想定し�
 > **お知らせ**
 > CI / リリース / SWA同期などの運用ワークフローは [`nuitsjp/swa-github-workflows`](https://github.com/nuitsjp/swa-github-workflows) へ移管しました。本リポジトリはAction本体のみを管理します。
 
-有効期限切れの招待Discussionを自動削除する専用Actionとして [`swa-github-discussion-cleanup`](https://github.com/nuitsjp/swa-github-discussion-cleanup) を用意しており、招待リンクのライフサイクル管理を完結させることができます。
+有効期限切れの招待Discussionを自動削除する専用Actionとして [`swa-github-discussion-cleanup`](https://github.com/nuitsjp/swa-github-discussion-cleanup)（別リポジトリーで提供）を用意しており、招待リンクのライフサイクル管理を完結させることができます。
 
 ## Overview
 
@@ -110,12 +110,12 @@ jobs:
       discussions: write
     steps:
       - name: Cleanup expired discussions
-        uses: nuitsjp/swa-github-role-sync/cleanup-discussions@v1
+        uses: nuitsjp/swa-github-discussion-cleanup@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           target-repo: my-org/my-repo
           discussion-category-name: Announcements
-          expiration-hours: 24
+          expiration-hours: 168
 ```
 
 ## Inputs

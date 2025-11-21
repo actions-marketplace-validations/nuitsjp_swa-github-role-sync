@@ -15,7 +15,7 @@ A reusable JavaScript Action that synchronizes Azure Static Web Apps (SWA) user/
 > **Note**
 > Operational workflows (CI, release, SWA synchronization) are now maintained in [`nuitsjp/swa-github-workflows`](https://github.com/nuitsjp/swa-github-workflows). This repository only hosts the Action code itself.
 
-The dedicated [`swa-github-discussion-cleanup`](https://github.com/nuitsjp/swa-github-discussion-cleanup) Action automatically deletes expired invitation Discussions, providing complete lifecycle management for invitation links.
+The dedicated [`swa-github-discussion-cleanup`](https://github.com/nuitsjp/swa-github-discussion-cleanup) Action (available separately) automatically deletes expired invitation Discussions, providing complete lifecycle management for invitation links.
 
 ## Overview
 
@@ -95,12 +95,12 @@ jobs:
       discussions: write
     steps:
       - name: Cleanup expired discussions
-        uses: nuitsjp/swa-github-role-sync/cleanup-discussions@v1
+        uses: nuitsjp/swa-github-discussion-cleanup@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           target-repo: my-org/my-repo
           discussion-category-name: Announcements
-          expiration-hours: 24
+          expiration-hours: 168
 ```
 
 ## Inputs

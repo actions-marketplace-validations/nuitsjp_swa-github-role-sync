@@ -275,11 +275,11 @@ jobs:
       discussions: write
     steps:
       - name: Cleanup expired discussions
-        uses: nuitsjp/swa-github-role-sync/cleanup-discussions@v1
+        uses: nuitsjp/swa-github-discussion-cleanup@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           discussion-category-name: Announcements
-          expiration-hours: 24 # Match sync Action expiration setting
+          expiration-hours: 168 # Match sync Action expiration setting
           cleanup-mode: ${{ github.event_name == 'workflow_dispatch' && 'immediate' || 'expiration' }}
 ```
 
