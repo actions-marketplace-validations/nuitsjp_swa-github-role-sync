@@ -105,41 +105,41 @@ jobs:
 
 ## Inputs
 
-| Name                          | Required | Default                                               | Description                                                                                                                                                                      |
-| ----------------------------- | -------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `github-token`                | true     |                                                      | Token to retrieve repository collaborators and create Discussions.                                                                                                               |
-| `target-repo`                 | false    | Current `owner/repo`                                  | Target repository to retrieve collaborators from. Specify when managing SWA with a different repository's permissions.                                                           |
-| `swa-name`                    | true     |                                                      | Target Static Web App name.                                                                                                                                                      |
-| `swa-resource-group`          | true     |                                                      | Resource group name of the Static Web App.                                                                                                                                       |
-| `swa-domain`                  | false    | SWA default hostname                                  | Custom domain to include in invitation links. Resolved from `az staticwebapp show` when omitted.                                                                                 |
-| `invitation-expiration-hours` | false    | `168`                                                 | Invitation link expiration time (1-168 hours).                                                                                                                                   |
-| `role-for-admin`              | false    | `github-admin`                                        | SWA role name assigned to GitHub `admin` users.                                                                                                                                  |
-| `role-for-write`              | false    | `github-writer`                                       | SWA role name assigned to GitHub `write`/`maintain` users.                                                                                                                       |
-| `role-prefix`                 | false    | `github-`                                             | Prefix for SWA roles to be considered diff targets. Specify when using custom roles with `role-for-*`.                                                                           |
-| `discussion-category-name`    | true     |                                                      | Discussion category name where invitation summaries will be posted.                                                                                                              |
-| `discussion-title-template`   | false    | `SWA access invite for @{login} ({swaName}) - {date}` | Discussion title template. Supports placeholders: `{swaName}`, `{repo}`, `{date}`, `{login}`.                                                                                    |
+| Name                          | Required | Default                                               | Description                                                                                                                                                                    |
+| ----------------------------- | -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `github-token`                | true     |                                                       | Token to retrieve repository collaborators and create Discussions.                                                                                                             |
+| `target-repo`                 | false    | Current `owner/repo`                                  | Target repository to retrieve collaborators from. Specify when managing SWA with a different repository's permissions.                                                         |
+| `swa-name`                    | true     |                                                       | Target Static Web App name.                                                                                                                                                    |
+| `swa-resource-group`          | true     |                                                       | Resource group name of the Static Web App.                                                                                                                                     |
+| `swa-domain`                  | false    | SWA default hostname                                  | Custom domain to include in invitation links. Resolved from `az staticwebapp show` when omitted.                                                                               |
+| `invitation-expiration-hours` | false    | `168`                                                 | Invitation link expiration time (1-168 hours).                                                                                                                                 |
+| `role-for-admin`              | false    | `github-admin`                                        | SWA role name assigned to GitHub `admin` users.                                                                                                                                |
+| `role-for-write`              | false    | `github-writer`                                       | SWA role name assigned to GitHub `write`/`maintain` users.                                                                                                                     |
+| `role-prefix`                 | false    | `github-`                                             | Prefix for SWA roles to be considered diff targets. Specify when using custom roles with `role-for-*`.                                                                         |
+| `discussion-category-name`    | true     |                                                       | Discussion category name where invitation summaries will be posted.                                                                                                            |
+| `discussion-title-template`   | false    | `SWA access invite for @{login} ({swaName}) - {date}` | Discussion title template. Supports placeholders: `{swaName}`, `{repo}`, `{date}`, `{login}`.                                                                                  |
 | `discussion-body-template`    | false    | See `action.yml`                                      | Discussion body template. Supports placeholders: `{login}`, `{role}`, `{inviteUrl}`, `{invitationExpirationHours}`, and optionally `{summaryMarkdown}` for aggregated results. |
 
 ### Cleanup Discussions Inputs
 
-| Name                        | Required | Default                                               | Description                                                                                                      |
-| --------------------------- | -------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `github-token`              | true     |                                                      | Token for deleting Discussions.                                                                                  |
-| `target-repo`               | false    | Current `owner/repo`                                  | Target repository from which to delete Discussions.                                                              |
-| `discussion-category-name`  | true     |                                                      | Category name containing the Discussions to be deleted.                                                          |
-| `expiration-hours`          | false    | `168`                                                 | Discussions created more than this many hours ago will be deleted.                                               |
-| `cleanup-mode`              | false    | `expiration`                                          | `expiration` (default) deletes only expired, `immediate` deletes all matching discussions immediately.           |
+| Name                        | Required | Default                                               | Description                                                                                                     |
+| --------------------------- | -------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `github-token`              | true     |                                                       | Token for deleting Discussions.                                                                                 |
+| `target-repo`               | false    | Current `owner/repo`                                  | Target repository from which to delete Discussions.                                                             |
+| `discussion-category-name`  | true     |                                                       | Category name containing the Discussions to be deleted.                                                         |
+| `expiration-hours`          | false    | `168`                                                 | Discussions created more than this many hours ago will be deleted.                                              |
+| `cleanup-mode`              | false    | `expiration`                                          | `expiration` (default) deletes only expired, `immediate` deletes all matching discussions immediately.          |
 | `discussion-title-template` | false    | `SWA access invite for @{login} ({swaName}) - {date}` | Title template to identify deletion targets (used for regex matching). Should match the template used for sync. |
 
 ## Outputs
 
-| Name              | Description                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| `added-count`     | Number of users newly invited.                                                             |
-| `updated-count`   | Number of existing users whose roles were updated.                                         |
-| `removed-count`   | Number of users whose roles were removed from SWA.                                         |
-| `discussion-url`  | URL of the first created invitation Discussion (kept for backward compatibility).          |
-| `discussion-urls` | Newline-separated URLs of all invitation Discussions (empty string when no invitations).   |
+| Name              | Description                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `added-count`     | Number of users newly invited.                                                           |
+| `updated-count`   | Number of existing users whose roles were updated.                                       |
+| `removed-count`   | Number of users whose roles were removed from SWA.                                       |
+| `discussion-url`  | URL of the first created invitation Discussion (kept for backward compatibility).        |
+| `discussion-urls` | Newline-separated URLs of all invitation Discussions (empty string when no invitations). |
 
 ## Usage Notes
 

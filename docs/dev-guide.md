@@ -24,15 +24,15 @@ Run tests and Lint in small units; use `npm test -- <pattern>` to narrow targets
 
 ## Daily Commands
 
-| Command                | Purpose                                                              |
-| ---------------------- | -------------------------------------------------------------------- |
-| `npm run format:write` | Format source, documentation, and workflow YAML with Prettier       |
-| `npm run lint`         | Run ESLint (TypeScript/Prettier config)                              |
-| `npm test`             | Run unit tests with Jest (ESM mode)                                  |
-| `npm run verify`       | Run format check + Lint + test + `dist` diff check comprehensively  |
-| `npm run package`      | Regenerate `dist/sync.js` and `dist/cleanup.js` with Rollup         |
-| `npm run bundle`       | Regenerate `dist/` in formatted state                                |
-| `npm run local-action` | Try Action locally using `.env` input values                         |
+| Command                | Purpose                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| `npm run format:write` | Format source, documentation, and workflow YAML with Prettier      |
+| `npm run lint`         | Run ESLint (TypeScript/Prettier config)                            |
+| `npm test`             | Run unit tests with Jest (ESM mode)                                |
+| `npm run verify`       | Run format check + Lint + test + `dist` diff check comprehensively |
+| `npm run package`      | Regenerate `dist/sync.js` and `dist/cleanup.js` with Rollup        |
+| `npm run bundle`       | Regenerate `dist/` in formatted state                              |
+| `npm run local-action` | Try Action locally using `.env` input values                       |
 
 Since `dist/` is committed to the repository, always run `npm run package` or `npm run bundle` for behavior-changing modifications.
 

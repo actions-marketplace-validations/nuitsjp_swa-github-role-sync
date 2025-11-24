@@ -41,18 +41,18 @@ This document provides concrete procedures and best practices for Azure Static W
 
 ## Inputs Reference
 
-| Input                               | Description                                                                                       | Recommended Value                                                               |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `invitation-expiration-hours`       | Invitation link expiration time (1-168 hours).                                                    | `168`                                                                           |
-| `github-token`                      | Used for collaborator retrieval and Discussion creation.                                          | `secrets.GITHUB_TOKEN` (default) or PAT for remote repo targets                 |
-| `target-repo`                       | Specify when synchronizing from another repository's permissions.                                 | Omit to use current repo                                                        |
-| `swa-name` / `swa-resource-group`   | Identify target SWA.                                                                              | Exact name from Azure Portal                                                    |
-| `swa-domain`                        | Domain for invitation links.                                                                      | Required when using custom domain, omit otherwise                               |
-| `role-for-admin` / `role-for-write` | SWA role strings assigned according to GitHub permissions.                                        | `github-admin`, `github-writer`                                                 |
-| `role-prefix`                       | Prefix for SWA roles to be considered sync targets.                                               | `github-`                                                                       |
-| `discussion-category-name`          | Category name to post invitation summaries.                                                       | Category where users receive notifications like `Announcements`                 |
-| `discussion-title-template`         | Discussion title. Insert `{swaName}`/`{repo}`/`{date}`.                                           | `SWA access invite for @{login} ({swaName}) - {date}`                           |
-| `discussion-body-template`          | Discussion body. Use `{login}`, `{role}`, `{inviteUrl}`, `{invitationExpirationHours}` to guide. | Default template recommended                                                    |
+| Input                               | Description                                                                                      | Recommended Value                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `invitation-expiration-hours`       | Invitation link expiration time (1-168 hours).                                                   | `168`                                                           |
+| `github-token`                      | Used for collaborator retrieval and Discussion creation.                                         | `secrets.GITHUB_TOKEN` (default) or PAT for remote repo targets |
+| `target-repo`                       | Specify when synchronizing from another repository's permissions.                                | Omit to use current repo                                        |
+| `swa-name` / `swa-resource-group`   | Identify target SWA.                                                                             | Exact name from Azure Portal                                    |
+| `swa-domain`                        | Domain for invitation links.                                                                     | Required when using custom domain, omit otherwise               |
+| `role-for-admin` / `role-for-write` | SWA role strings assigned according to GitHub permissions.                                       | `github-admin`, `github-writer`                                 |
+| `role-prefix`                       | Prefix for SWA roles to be considered sync targets.                                              | `github-`                                                       |
+| `discussion-category-name`          | Category name to post invitation summaries.                                                      | Category where users receive notifications like `Announcements` |
+| `discussion-title-template`         | Discussion title. Insert `{swaName}`/`{repo}`/`{date}`.                                          | `SWA access invite for @{login} ({swaName}) - {date}`           |
+| `discussion-body-template`          | Discussion body. Use `{login}`, `{role}`, `{inviteUrl}`, `{invitationExpirationHours}` to guide. | Default template recommended                                    |
 
 ## Step-by-Step Setup
 
@@ -302,13 +302,13 @@ If changing `discussion-title-template`, specify the same template to this Actio
 
 ## Troubleshooting
 
-| Issue                                         | Cause and Solution                                                                                                                                                                                                   |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Discussion category "..." not found`         | Specified category name doesn't match or Discussions feature is disabled. Enable Discussions in Settings and set correct name.                                                                                       |
-| `Failed to retrieve invite URL`               | Non-existent domain specified in `swa-domain` or `azure/login` step failed with no `az` permission. Confirm `azure/login` success in logs and optionally add `az version` to verify CLI health.                     |
-| `Plan -> add:0 update:0 remove:0`             | No diff detected (normal behavior). Change permissions on GitHub side and re-run.                                                                                                                                    |
-| `403 Resource not accessible by integration`  | Insufficient `github-token` permissions. Check workflow `permissions` block to allow Discussion writes. If `target-repo` differs, use PAT.                                                                           |
-| `Unauthorized` (Azure CLI)                    | Incorrect OIDC federation setup. Reconfirm service principal has Static Web Apps resource access.                                                                                                                    |
+| Issue                                        | Cause and Solution                                                                                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Discussion category "..." not found`        | Specified category name doesn't match or Discussions feature is disabled. Enable Discussions in Settings and set correct name.                                                                  |
+| `Failed to retrieve invite URL`              | Non-existent domain specified in `swa-domain` or `azure/login` step failed with no `az` permission. Confirm `azure/login` success in logs and optionally add `az version` to verify CLI health. |
+| `Plan -> add:0 update:0 remove:0`            | No diff detected (normal behavior). Change permissions on GitHub side and re-run.                                                                                                               |
+| `403 Resource not accessible by integration` | Insufficient `github-token` permissions. Check workflow `permissions` block to allow Discussion writes. If `target-repo` differs, use PAT.                                                      |
+| `Unauthorized` (Azure CLI)                   | Incorrect OIDC federation setup. Reconfirm service principal has Static Web Apps resource access.                                                                                               |
 
 ## FAQ
 
