@@ -1,55 +1,181 @@
-# swa-github-role-sync
+# swa-github-role-sync-ops
 
-[![Coverage](https://raw.githubusercontent.com/nuitsjp/swa-github-role-sync/main/badges/coverage.svg)](https://github.com/nuitsjp/swa-github-role-sync)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![NPM CI](https://github.com/nuitsjp/swa-github-role-sync-ops/actions/workflows/npm-ci.yml/badge.svg)](https://github.com/nuitsjp/swa-github-role-sync-ops/actions/workflows/npm-ci.yml)
+[![Deploy Site](https://github.com/nuitsjp/swa-github-role-sync-ops/actions/workflows/deploy-site.yml/badge.svg)](https://github.com/nuitsjp/swa-github-role-sync-ops/actions/workflows/deploy-site.yml)
+[![Role Sync (Released)](https://github.com/nuitsjp/swa-github-role-sync-ops/actions/workflows/role-sync-released.yml/badge.svg)](https://github.com/nuitsjp/swa-github-role-sync-ops/actions/workflows/role-sync-released.yml)
+[![swa-github-role-sync](https://img.shields.io/github/v/release/nuitsjp/swa-github-role-sync?label=role-sync)](https://github.com/nuitsjp/swa-github-role-sync/releases/latest)
+[![swa-github-discussion-cleanup](https://img.shields.io/github/v/release/nuitsjp/swa-github-discussion-cleanup?label=discussion-cleanup)](https://github.com/nuitsjp/swa-github-discussion-cleanup/releases/latest)
 
-[Japanese](README.ja.md)
+[日本語](README.ja.md)
 
-A reusable JavaScript Action that synchronizes Azure Static Web Apps (SWA) user/roles with users who have `admin` / `write` permissions on the target GitHub repository, notifies them via user-specific Discussions with invitation links, and publishes summary results to the GitHub Actions Job Summary. This approach treats SWA access management as a "snapshot of GitHub repository permissions," ideal for scenarios where you want to align access control with Pull Request workflows and branch protection policies.
+Provides reusable GitHub Actions for controlling access to Azure Static Web Apps (SWA) based on GitHub repository permissions.
 
-> **Note**
-> Operational workflows (CI, release, SWA synchronization) are now maintained in [`nuitsjp/swa-github-role-sync-ops`](https://github.com/nuitsjp/swa-github-role-sync-ops). This repository only hosts the Action code itself.
+When hosting documentation on SWA that is associated with a GitHub repository, you can achieve access control such as "only users with read permission to the repository can view the content." This Action automatically syncs GitHub repository permissions (admin/maintain/write/triage/read) to SWA custom roles, and notifies target users with invitation links via GitHub Discussions.
 
-The dedicated [`swa-github-discussion-cleanup`](https://github.com/nuitsjp/swa-github-discussion-cleanup) Action (available separately) automatically deletes expired invitation Discussions, providing complete lifecycle management for invitation links.
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [Creating Azure Resources](#creating-azure-resources)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [License](#license)
 
 ## Overview
 
-This Action combines the GitHub REST/GraphQL API and Azure CLI (`az staticwebapp ...`) to provide the following flow in a single workflow step:
+### Problem Statement
 
-1. Enumerate users with `admin` / `maintain` / `write` permissions in the target repository.
-2. Retrieve GitHub provider user/role data registered in SWA.
-3. Treat GitHub as the source of truth and generate a diff plan for users to add/update/remove.
-4. Apply necessary users via `az staticwebapp users invite|update`, consolidating invitation links into a markdown summary.
-5. Post generated invitation links as individual user Discussions and add sync result totals to `GITHUB_STEP_SUMMARY`.
+When publishing documentation related to a GitHub repository on SWA, the following challenges exist:
 
-## Core Features
+- SWA authentication/authorization is not linked to GitHub repository permissions
+- SWA role assignments must be manually updated when repository permissions change
+- Managing invitation link expiration is cumbersome
 
-- Maps GitHub `admin` ’ SWA custom role (default `github-admin`), `write/maintain` ’ SWA custom role (default `github-writer`).
-- Diff detection with existing roles prevents duplicate invitations and unintended role changes.
-- Supports Discussion title/body template customization, allowing insertion of @{login}, invite URL, date/repository name, and instructions to close the Discussion after authentication.
-- Writes results to `core.summary` regardless of success/failure, enabling immediate status visibility from workflow execution logs.
-- Can specify a different repository via `target-repo` for organization-wide membership synchronization.
-- The `cleanup-discussions` Action automatically cleans up expired invitation Discussions (default 24-hour expiration).
+### Provided Actions
+
+This repository provides the following two reusable GitHub Actions:
+
+| Action | Description |
+|--------|-------------|
+| [swa-github-role-sync](https://github.com/nuitsjp/swa-github-role-sync) | Syncs users with GitHub repository permissions to SWA custom roles and notifies them via Discussion with invitation links |
+| [swa-github-discussion-cleanup](https://github.com/nuitsjp/swa-github-discussion-cleanup) | Automatically deletes expired invitation Discussions |
+
+## Features
+
+### swa-github-role-sync
+
+- 1:1 mapping between GitHub permissions and SWA roles (5 levels)
+  - `admin` → `github-admin`
+  - `maintain` → `github-maintain`
+  - `write` → `github-write`
+  - `triage` → `github-triage`
+  - `read` → `github-read`
+- Configurable minimum permission level for sync targets via `minimum-permission` (default: `write`)
+- Duplicate invitation suppression through diff detection
+- Automatic creation of invitation Discussions for each user
+- Sync result summary output to `GITHUB_STEP_SUMMARY`
+
+### swa-github-discussion-cleanup
+
+- Automatic deletion of expired Discussions based on creation date
+- Filtering of deletion targets using title templates
+- Immediate deletion mode for manual execution
 
 ## Prerequisites
 
-### GitHub requirements
+- **On Windows, use WSL (Windows Subsystem for Linux).** Setup scripts are written in Bash.
+- Azure CLI (`az`) and GitHub CLI (`gh`) must be installed and logged in.
+- Enable Discussions on the target repository and prepare a category for posting invitation notifications (e.g., `Announcements`).
+- Create a GitHub App (`Administration: read`, `Discussions: read & write`, and `Members: read` if needed). Note the App ID and private key.
+- The workflow must have `permissions` configured for `contents: read` / `discussions: write` / `id-token: write`.
 
-- GitHub Actions and Discussions must be enabled in the target repository.
-- Workflow must have `discussions: write`, `contents: read`, and `id-token: write` permissions.
-- Use `GITHUB_TOKEN` for `github-token`, or a PAT with `repo`, `discussions`, `read:org` scopes as needed.
+## Getting Started
 
-### Azure requirements
+If Azure resources (Static Web App, managed identity, etc.) already exist, start from the Secrets configuration. If you need to create Azure resources, refer to the "[Creating Azure Resources](#creating-azure-resources)" section first.
 
-- The target SWA (recommended: Standard plan) must be deployed and using GitHub authentication.
-- OIDC authentication via `azure/login` must be completed so that the `az` CLI can execute `staticwebapp` commands.
-- Specify accurate values for `swa-name` and `swa-resource-group` as confirmed in Azure Portal or CLI. If `swa-domain` is omitted, the default hostname will be resolved from `az staticwebapp show`.
+### 1. Secrets Configuration
 
-## Quick Start
+#### Required Secrets
 
-1. Enable the GitHub provider in your target SWA resource and confirm that user invitations can be executed from CLI.
-2. Enable Discussions in your GitHub repository (Settings ’ General) and prepare a category (e.g., `Announcements`) to post invitation summaries.
-3. Add the workflow below and register Azure federation credentials (Client ID, Tenant ID, Subscription ID) as repository or Organization secrets.
+Register the following Secrets in your repository or Organization:
+
+| Secret | Description |
+|--------|-------------|
+| `AZURE_CLIENT_ID` | Client ID for Azure OIDC authentication |
+| `AZURE_TENANT_ID` | Azure tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | SWA deployment token |
+| `ROLE_SYNC_APP_ID` | GitHub App ID |
+| `ROLE_SYNC_APP_PRIVATE_KEY` | GitHub App private key |
+
+#### GitHub App Creation Notes (UI Operations)
+
+1. Create a "New GitHub App" from GitHub's "Developer settings > GitHub Apps".
+2. Grant `Administration (Read-only)` and `Discussions (Read & write)` under **Repository permissions**. If using Organization member information, grant `Members (Read-only)` under **Organization permissions**.
+3. Install the App on the target Organization/repository, obtain the App ID and Private key (`.pem`), and register them in Secrets.
+
+#### Registering Secrets for GitHub App
+
+Manually register Secrets for the GitHub App:
+
+```bash
+gh secret set ROLE_SYNC_APP_ID --body "123456"
+gh secret set ROLE_SYNC_APP_PRIVATE_KEY < role-sync-app.private-key.pem
+```
+
+For Organization Secrets, add `--org <ORG>` and optionally limit visibility with `--repos`.
+
+### 2. SWA Route Configuration
+
+To enable role-based access control on SWA, configure `routes` in `staticwebapp.config.json`.
+
+#### Basic Example: Allow Access Only to Users with Specific Roles or Above
+
+```json
+{
+  "routes": [
+    {
+      "route": "/*",
+      "allowedRoles": ["github-admin", "github-maintain", "github-write"]
+    }
+  ],
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/github",
+      "statusCode": 302
+    }
+  }
+}
+```
+
+#### Role-Based Resource Access Restrictions
+
+Example of separating admin-only areas from general user areas:
+
+```json
+{
+  "routes": [
+    {
+      "route": "/admin/*",
+      "allowedRoles": ["github-admin"]
+    },
+    {
+      "route": "/internal/*",
+      "allowedRoles": ["github-admin", "github-maintain", "github-write"]
+    },
+    {
+      "route": "/*",
+      "allowedRoles": ["github-admin", "github-maintain", "github-write", "github-triage", "github-read"]
+    }
+  ],
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/github",
+      "statusCode": 302
+    },
+    "403": {
+      "rewrite": "/403.html",
+      "statusCode": 403
+    }
+  }
+}
+```
+
+In this example:
+- `/admin/*`: Accessible only by `github-admin` role
+- `/internal/*`: Accessible by `github-admin`, `github-maintain`, `github-write` roles
+- `/*`: Accessible by all synced roles
+
+Specify the roles to allow in `allowedRoles` according to your `minimum-permission` and `role-for-*` settings. For details, see the [Azure Static Web Apps route configuration documentation](https://learn.microsoft.com/en-us/azure/static-web-apps/configuration).
+
+### 3. Workflow Setup
+
+#### Add Role Sync Workflow
+
+Create `.github/workflows/role-sync.yml`. Change `swa-name`, `swa-resource-group`, and `discussion-category-name` to match your environment.
 
 ```yaml
 name: Sync SWA roles
@@ -68,105 +194,192 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
       - name: Sync SWA role assignments
         uses: nuitsjp/swa-github-role-sync@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           swa-name: my-swa-app
-          swa-resource-group: rg-app-prod
+          swa-resource-group: my-swa-rg
           discussion-category-name: Announcements
+```
 
+#### Add Invitation Discussion Cleanup Workflow (Optional)
+
+Setting `cleanup-mode` to `immediate` enables immediate deletion during manual execution. For scheduled runs, maintaining `expiration` is safer.
+
+```yaml
+name: Cleanup invite discussions
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+jobs:
   cleanup:
     runs-on: ubuntu-latest
     permissions:
       discussions: write
     steps:
-      - name: Cleanup expired discussions
-        uses: nuitsjp/swa-github-discussion-cleanup@v1
+      - uses: nuitsjp/swa-github-discussion-cleanup@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          target-repo: my-org/my-repo
           discussion-category-name: Announcements
           expiration-hours: 168
+          cleanup-mode: ${{ github.event_name == 'workflow_dispatch' && 'immediate' || 'expiration' }}
 ```
 
-## Inputs
-
-| Name                          | Required | Default                                               | Description                                                                                                                                                                    |
-| ----------------------------- | -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `github-token`                | true     |                                                       | Token to retrieve repository collaborators and create Discussions.                                                                                                             |
-| `target-repo`                 | false    | Current `owner/repo`                                  | Target repository to retrieve collaborators from. Specify when managing SWA with a different repository's permissions.                                                         |
-| `swa-name`                    | true     |                                                       | Target Static Web App name.                                                                                                                                                    |
-| `swa-resource-group`          | true     |                                                       | Resource group name of the Static Web App.                                                                                                                                     |
-| `swa-domain`                  | false    | SWA default hostname                                  | Custom domain to include in invitation links. Resolved from `az staticwebapp show` when omitted.                                                                               |
-| `invitation-expiration-hours` | false    | `168`                                                 | Invitation link expiration time (1-168 hours).                                                                                                                                 |
-| `role-for-admin`              | false    | `github-admin`                                        | SWA role name assigned to GitHub `admin` users.                                                                                                                                |
-| `role-for-write`              | false    | `github-writer`                                       | SWA role name assigned to GitHub `write`/`maintain` users.                                                                                                                     |
-| `role-prefix`                 | false    | `github-`                                             | Prefix for SWA roles to be considered diff targets. Specify when using custom roles with `role-for-*`.                                                                         |
-| `discussion-category-name`    | true     |                                                       | Discussion category name where invitation summaries will be posted.                                                                                                            |
-| `discussion-title-template`   | false    | `SWA access invite for @{login} ({swaName}) - {date}` | Discussion title template. Supports placeholders: `{swaName}`, `{repo}`, `{date}`, `{login}`.                                                                                  |
-| `discussion-body-template`    | false    | See `action.yml`                                      | Discussion body template. Supports placeholders: `{login}`, `{role}`, `{inviteUrl}`, `{invitationExpirationHours}`, and optionally `{summaryMarkdown}` for aggregated results. |
-
-### Cleanup Discussions Inputs
-
-| Name                        | Required | Default                                               | Description                                                                                                     |
-| --------------------------- | -------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `github-token`              | true     |                                                       | Token for deleting Discussions.                                                                                 |
-| `target-repo`               | false    | Current `owner/repo`                                  | Target repository from which to delete Discussions.                                                             |
-| `discussion-category-name`  | true     |                                                       | Category name containing the Discussions to be deleted.                                                         |
-| `expiration-hours`          | false    | `168`                                                 | Discussions created more than this many hours ago will be deleted.                                              |
-| `cleanup-mode`              | false    | `expiration`                                          | `expiration` (default) deletes only expired, `immediate` deletes all matching discussions immediately.          |
-| `discussion-title-template` | false    | `SWA access invite for @{login} ({swaName}) - {date}` | Title template to identify deletion targets (used for regex matching). Should match the template used for sync. |
-
-## Outputs
-
-| Name              | Description                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| `added-count`     | Number of users newly invited.                                                           |
-| `updated-count`   | Number of existing users whose roles were updated.                                       |
-| `removed-count`   | Number of users whose roles were removed from SWA.                                       |
-| `discussion-url`  | URL of the first created invitation Discussion (kept for backward compatibility).        |
-| `discussion-urls` | Newline-separated URLs of all invitation Discussions (empty string when no invitations). |
-
-## Usage Notes
-
-- Each invitation creates a separate Discussion, and aggregate counts are displayed in `GITHUB_STEP_SUMMARY`. Use these appropriately for user notifications versus administrator summaries.
-- When pointing `target-repo` to another repository, set a PAT with access to that target repository in `github-token`.
-- The diff logic only synchronizes roles matching the `role-prefix`. When specifying custom roles with `role-for-*`, use the same prefix.
-- Due to SWA specifications, users assignable to custom roles are limited to 25. This Action will error and abort if the sync target exceeds 25 users.
-- Invitation link expiration defaults to 168 hours (7 days). You can change it to 1-168 hours via `invitation-expiration-hours`.
-
-## Local Testing
+### 4. Running Workflows
 
 ```bash
-npm install
-npm run lint
-npm test
-npm run local-action
+# Run role sync manually
+gh workflow run role-sync.yml --ref main
+
+# Check execution results
+gh run watch --exit-status
+
+# Run invitation Discussion cleanup manually
+gh workflow run cleanup-invite-discussions.yml --ref main
 ```
 
-`npm run local-action` uses input values from `.env` for local execution, allowing you to verify templates and role settings before production deployment to Azure/GitHub. For CI-equivalent validation, use `npm run verify` and don't forget to run `npm run package` to keep `dist/` in sync.
+### 5. Verify Results
+
+- The number of invitations and updates are displayed in `GITHUB_STEP_SUMMARY`. Check via GitHub Web UI or `gh run view --log`.
+- Invitation Discussions are created in the specified category with invitation URLs in the body.
+- The cleanup workflow outputs the number of deleted items.
+
+## Creating Azure Resources
+
+If Azure resources are not yet created, follow these steps to create a resource group, Static Web App, managed identity, and configure OIDC login from GitHub Actions.
+
+### Bulk Creation with Setup Script
+
+Run the following command to create all necessary resources at once:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nuitsjp/swa-github-role-sync-ops/main/scripts/setup-azure-resources.sh | bash -s -- <owner> <repository>
+```
+
+**Example:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nuitsjp/swa-github-role-sync-ops/main/scripts/setup-azure-resources.sh | bash -s -- nuitsjp swa-github-role-sync-ops
+```
+
+**Output:**
+
+```
+=== Azure Resource Setup for swa-github-role-sync-ops ===
+Resource Group: rg-swa-github-role-sync-ops-prod
+Static Web App: stapp-swa-github-role-sync-ops-prod
+Managed Identity: id-swa-github-role-sync-ops-prod
+GitHub Repo: nuitsjp/swa-github-role-sync-ops
+
+[1/6] Creating Resource Group...
+  Created: rg-swa-github-role-sync-ops-prod
+[2/6] Creating Static Web App...
+  Created: stapp-swa-github-role-sync-ops-prod
+  Hostname: white-pond-06cee3400.3.azurestaticapps.net
+[3/6] Creating Managed Identity...
+  Created: id-swa-github-role-sync-ops-prod
+  Client ID: a58912f6-5e94-4cf7-a68f-84a8f8537781
+[4/6] Creating Federated Credential...
+  Created: fc-github-actions-main
+[5/6] Assigning RBAC role...
+  Assigned Contributor role to id-swa-github-role-sync-ops-prod
+[6/6] Registering GitHub Secrets...
+  AZURE_CLIENT_ID: a58912f6-5e94-4cf7-a68f-84a8f8537781
+  AZURE_TENANT_ID: fe689afa-3572-4db9-8e8a-0f81d5a9d253
+  AZURE_SUBSCRIPTION_ID: fc7753ed-2e69-4202-bb66-86ff5798b8d5
+
+=== Setup Complete ===
+SWA URL: https://white-pond-06cee3400.3.azurestaticapps.net
+```
+
+The script automatically executes the following:
+
+1. Create resource group (`rg-<repository>-prod`)
+2. Create Static Web App (`stapp-<repository>-prod`, Standard SKU)
+3. Create managed identity (`id-<repository>-prod`)
+4. Create OIDC federated credential
+5. Assign Contributor role
+6. Register GitHub Secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`)
+
+### Resource Naming Convention
+
+Based on the Azure Cloud Adoption Framework's [resource abbreviation guidance](https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/resource-abbreviations), the following naming conventions are used:
+
+| Resource Type | Prefix | Example |
+|---------------|--------|---------|
+| Resource Group | `rg` | `rg-swa-github-role-sync-ops-prod` |
+| Static Web App | `stapp` | `stapp-swa-github-role-sync-ops-prod` |
+| Managed Identity | `id` | `id-swa-github-role-sync-ops-prod` |
+
+## Configuration
+
+### Changing Sync Target Permission Level
+
+Use `minimum-permission` to specify the minimum permission level for sync targets:
+
+| `minimum-permission` | Sync Targets |
+|---------------------|--------------|
+| `read` | read, triage, write, maintain, admin |
+| `triage` | triage, write, maintain, admin |
+| `write` | write, maintain, admin (default) |
+| `maintain` | maintain, admin |
+| `admin` | admin only |
+
+```yaml
+- uses: nuitsjp/swa-github-role-sync@v1
+  with:
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    swa-name: my-swa-app
+    swa-resource-group: my-swa-rg
+    discussion-category-name: Announcements
+    minimum-permission: read  # Sync all users with read or above
+```
+
+### Customizing Role Names
+
+You can configure SWA role names corresponding to each GitHub permission:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `role-for-admin` | `github-admin` | SWA role for admin permission |
+| `role-for-maintain` | `github-maintain` | SWA role for maintain permission |
+| `role-for-write` | `github-write` | SWA role for write permission |
+| `role-for-triage` | `github-triage` | SWA role for triage permission |
+| `role-for-read` | `github-read` | SWA role for read permission |
+
+### Other Settings
+
+- **Sync based on another repository's permissions**
+  Specify `owner/repo` in `target-repo` and provide a PAT with access to the target repository in `github-token`.
+- **Changing templates**
+  Templates support placeholders such as `{login}`, `{role}`, `{inviteUrl}`, `{swaName}`, `{repo}`, `{date}`. Configure the same template on the Discussion cleanup side as well.
+- **Invitation link expiration**
+  Changing `invitation-expiration-hours` (default 168 hours) requires matching the `expiration-hours` in the cleanup workflow.
+- **Using custom domain**
+  Specifying a domain like `https://example.com` in `swa-domain` generates invitation URLs with that domain.
 
 ## Troubleshooting
 
-- `Discussion category "..." not found` failure: Verify that the Discussion category name matches and that Discussions are enabled in the workflow execution repository.
-- `Failed to retrieve invite URL`: The `swa-domain` may specify a non-existent domain, or Azure CLI authorization may have expired. Check that the `azure/login` step succeeded and consider adding `az version` to verify CLI functionality.
-- No diff when Action doesn't create Discussions: The Action displays `buildSummaryMarkdown` with `status: success` and all counts at 0 if already synchronized.
+- `Discussion category "..." not found`: Category name is incorrect or Discussions are disabled. Check your settings.
+- `Resource not accessible by integration`: Insufficient `github-token` permissions. Check the `permissions` block and token scopes.
+- Sync completes with 0 invitations: If already synced, it completes without changes. Note that differences in `role-prefix` exclude items from diff detection.
 
-## Additional Documentation
+## Documentation
 
-- Detailed user guide: [docs/user-guide.md](docs/user-guide.md)
-- Development, testing, and release procedures: [docs/dev-guide.md](docs/dev-guide.md)
-- Architecture and design notes: [docs/architecture.md](docs/architecture.md)
+| Document | Contents |
+|----------|----------|
+| [docs/developer-guide.md](docs/developer-guide.md) | Development environment setup, testing, and release procedures |
+| [swa-github-role-sync](https://github.com/nuitsjp/swa-github-role-sync) | Detailed documentation for Role Sync Action |
+| [swa-github-discussion-cleanup](https://github.com/nuitsjp/swa-github-discussion-cleanup) | Detailed documentation for Discussion Cleanup Action |
 
 ## License
 
-MIT License. See `LICENSE` for details.
+MIT License - See the `LICENSE` file in each repository for details.
