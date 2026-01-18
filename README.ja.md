@@ -61,7 +61,7 @@ GitHubリポジトリに関連するドキュメントをSWAで公開する場�
 ### swa-github-discussion-cleanup
 
 - 作成日時ベースの期限切れDiscussion自動削除
-- タイトルテンプレートによる削除対象のフィルタリング
+- カテゴリー一致のみの削除対象判定
 - 手動実行時の即時削除モード
 
 ## Prerequisites
@@ -367,7 +367,7 @@ Azure Cloud Adoption Frameworkの[リソース省略形ガイダンス](https://
 - **別リポジトリの権限で同期する**
   `target-repo`に`owner/repo`を指定し、`github-token`に対象リポジトリへアクセスできるPATを渡します。
 - **テンプレートを変更する**
-  テンプレートは`{login}` `{role}` `{inviteUrl}` `{swaName}` `{repo}` `{date}`などのプレースホルダーを利用可能。Discussion掃除側も同じテンプレートを設定してください。
+  テンプレートは`{login}`、`{role}`、`{inviteUrl}`、`{swaName}`、`{repo}`、`{date}`などのプレースホルダーを利用可能である。Discussion掃除側はタイトルテンプレートを参照しないため設定不要である。
 - **招待リンクの有効期限**
   `invitation-expiration-hours`（既定168時間）を変更すると、掃除ワークフローの`expiration-hours`も合わせる必要があります。
 - **カスタムドメインを使う**
