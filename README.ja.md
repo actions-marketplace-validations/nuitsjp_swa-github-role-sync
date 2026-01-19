@@ -55,6 +55,7 @@ GitHubリポジトリに関連するドキュメントをSWAで公開する場�
   - `read` → `github-read`
 - `minimum-permission`で同期対象の最小権限レベルを指定可能（デフォルト: `write`）
 - 差分検出による重複招待の抑制
+- Discussion重複作成防止: 同一カテゴリ内に`swa-name`と`@{login}`の両方を含むオープンなDiscussionが既に存在する場合、新規Discussion作成をスキップ
 - ユーザーごとの招待Discussionを自動作成
 - `GITHUB_STEP_SUMMARY`への同期結果サマリー出力
 

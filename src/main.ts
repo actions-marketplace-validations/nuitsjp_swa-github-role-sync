@@ -9,6 +9,7 @@ import {
 } from './azure.js'
 import {
   createDiscussion,
+  findExistingInviteDiscussion,
   getDiscussionCategoryId,
   listEligibleCollaborators,
   parseTargetRepo
@@ -360,6 +361,23 @@ async function executeSyncPlan(context: SyncContext): Promise<SyncResults> {
   const discussionUrls: string[] = []
 
   for (const invite of added) {
+    // 既存Discussionをチェック
+    const existing = await findExistingInviteDiscussion(
+      context.githubToken,
+      context.owner,
+      context.repo,
+      context.categoryIds.categoryId,
+      context.swaName,
+      invite.login
+    )
+
+    if (existing.exists) {
+      core.info(
+        `Skipped Discussion for @${invite.login}: existing discussion found at ${existing.url}`
+      )
+      continue
+    }
+
     const templateValues = {
       ...baseTemplateValues,
       login: invite.login,

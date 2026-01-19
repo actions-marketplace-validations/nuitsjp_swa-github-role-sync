@@ -44,6 +44,7 @@ const parseTargetRepoMock = jest.fn((input: string) => {
 
 const listEligibleCollaboratorsMock = jest.fn()
 const createDiscussionMock = jest.fn()
+const findExistingInviteDiscussionMock = jest.fn()
 
 type LoadMainOptions = {
   buildSummaryMarkdown?: () => string
@@ -90,6 +91,7 @@ async function loadMain(options: LoadMainOptions = {}) {
     parseTargetRepo: parseTargetRepoMock,
     listEligibleCollaborators: listEligibleCollaboratorsMock,
     createDiscussion: createDiscussionMock,
+    findExistingInviteDiscussion: findExistingInviteDiscussionMock,
     getDiscussionCategoryId: getDiscussionCategoryIdMock
   }))
 
@@ -134,6 +136,7 @@ beforeEach(() => {
   parseTargetRepoMock.mockClear()
   listEligibleCollaboratorsMock.mockReset()
   createDiscussionMock.mockReset()
+  findExistingInviteDiscussionMock.mockReset()
   getDiscussionCategoryIdMock.mockReset()
   getInputMock.mockImplementation(getInputValue)
 
@@ -145,6 +148,8 @@ beforeEach(() => {
     repositoryId: 'repo-id',
     categoryId: 'cat-id'
   })
+
+  findExistingInviteDiscussionMock.mockResolvedValue({ exists: false })
 
   jest.useFakeTimers().setSystemTime(new Date('2024-01-02T12:00:00Z'))
 })
@@ -806,5 +811,128 @@ describe('run', () => {
     expect(summaryAddHeadingMock).not.toHaveBeenCalled()
     expect(summaryAddRawMock).not.toHaveBeenCalled()
     expect(summaryWriteMock).not.toHaveBeenCalled()
+  })
+
+  // 既存Discussionが見つかった場合はDiscussion作成をスキップする
+  it('skips discussion creation when existing discussion found', async () => {
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listSwaUsersMock.mockResolvedValue([])
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' }
+    ])
+    inviteUserMock.mockResolvedValue('https://invite/alice')
+    findExistingInviteDiscussionMock.mockResolvedValue({
+      exists: true,
+      url: 'https://github.com/owner/repo/discussions/existing'
+    })
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(inviteUserMock).toHaveBeenCalledWith(
+      'my-swa',
+      'my-rg',
+      'swa.azurewebsites.net',
+      'alice',
+      'github-admin',
+      168
+    )
+    expect(findExistingInviteDiscussionMock).toHaveBeenCalledWith(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'alice'
+    )
+    expect(createDiscussionMock).not.toHaveBeenCalled()
+    expect(infoMock).toHaveBeenCalledWith(
+      'Skipped Discussion for @alice: existing discussion found at https://github.com/owner/repo/discussions/existing'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith('added-count', 1)
+    expect(setOutputMock).toHaveBeenCalledWith('discussion-url', '')
+    expect(setOutputMock).toHaveBeenCalledWith('discussion-urls', '')
+  })
+
+  // 既存Discussionが見つからない場合はDiscussionを作成する
+  it('creates discussion when no existing discussion found', async () => {
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listSwaUsersMock.mockResolvedValue([])
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' }
+    ])
+    inviteUserMock.mockResolvedValue('https://invite/alice')
+    findExistingInviteDiscussionMock.mockResolvedValue({ exists: false })
+    createDiscussionMock.mockResolvedValue(
+      'https://github.com/owner/repo/discussions/123'
+    )
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(findExistingInviteDiscussionMock).toHaveBeenCalledWith(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'alice'
+    )
+    expect(createDiscussionMock).toHaveBeenCalledWith(
+      'token',
+      'owner',
+      'repo',
+      'Announcements',
+      expect.any(String),
+      expect.any(String),
+      { repositoryId: 'repo-id', categoryId: 'cat-id' }
+    )
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-url',
+      'https://github.com/owner/repo/discussions/123'
+    )
+  })
+
+  // 複数ユーザーで一部だけ既存Discussionがある場合は該当ユーザーのみスキップ
+  it('skips discussion only for users with existing discussions', async () => {
+    getSwaDefaultHostnameMock.mockResolvedValue('swa.azurewebsites.net')
+    listSwaUsersMock.mockResolvedValue([])
+    listEligibleCollaboratorsMock.mockResolvedValue([
+      { login: 'alice', role: 'admin' },
+      { login: 'bob', role: 'write' }
+    ])
+    inviteUserMock
+      .mockResolvedValueOnce('https://invite/alice')
+      .mockResolvedValueOnce('https://invite/bob')
+    findExistingInviteDiscussionMock
+      .mockResolvedValueOnce({
+        exists: true,
+        url: 'https://github.com/owner/repo/discussions/existing'
+      })
+      .mockResolvedValueOnce({ exists: false })
+    createDiscussionMock.mockResolvedValue(
+      'https://github.com/owner/repo/discussions/new'
+    )
+
+    const { run } = await loadMain()
+    await run()
+
+    expect(findExistingInviteDiscussionMock).toHaveBeenCalledTimes(2)
+    expect(createDiscussionMock).toHaveBeenCalledTimes(1)
+    expect(infoMock).toHaveBeenCalledWith(
+      'Skipped Discussion for @alice: existing discussion found at https://github.com/owner/repo/discussions/existing'
+    )
+    expect(infoMock).toHaveBeenCalledWith(
+      'Created Discussion for @bob: https://github.com/owner/repo/discussions/new'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith('added-count', 2)
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-url',
+      'https://github.com/owner/repo/discussions/new'
+    )
+    expect(setOutputMock).toHaveBeenCalledWith(
+      'discussion-urls',
+      'https://github.com/owner/repo/discussions/new'
+    )
   })
 })

@@ -55,6 +55,7 @@ This repository provides the following two reusable GitHub Actions:
   - `read` → `github-read`
 - Configurable minimum permission level for sync targets via `minimum-permission` (default: `write`)
 - Duplicate invitation suppression through diff detection
+- Duplicate Discussion prevention: Skips creating new invite Discussions when an open Discussion containing both `swa-name` and `@{login}` already exists in the same category
 - Automatic creation of invitation Discussions for each user
 - Sync result summary output to `GITHUB_STEP_SUMMARY`
 
