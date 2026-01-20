@@ -362,3 +362,266 @@ describe('github helpers', () => {
     ).rejects.toThrow('categoryIds is required to create a discussion')
   })
 })
+
+describe('findExistingInviteDiscussion', () => {
+  // マッチするDiscussionが見つかった場合はexists: trueを返す
+  it('returns exists: true when matching discussion found', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [
+            {
+              url: 'https://github.com/owner/repo/discussions/123',
+              body: 'Hi @testuser,\n\nYou now have access to my-swa.'
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({
+      exists: true,
+      url: 'https://github.com/owner/repo/discussions/123'
+    })
+    expect(graphqlRequestMock).toHaveBeenCalledWith(
+      expect.stringContaining('discussions'),
+      { owner: 'owner', repo: 'repo', categoryId: 'cat-id', cursor: null }
+    )
+  })
+
+  // マッチするDiscussionが見つからない場合はexists: falseを返す
+  it('returns exists: false when no matching discussion found', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [
+            {
+              url: 'https://github.com/owner/repo/discussions/123',
+              body: 'Hi @otheruser,\n\nYou now have access to my-swa.'
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({ exists: false })
+  })
+
+  // swaNameは含むがloginを含まないDiscussionはマッチしない
+  it('returns exists: false when discussion contains swaName but not login', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [
+            {
+              url: 'https://github.com/owner/repo/discussions/123',
+              body: 'Invite to my-swa for someone else'
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({ exists: false })
+  })
+
+  // loginは含むがswaNameを含まないDiscussionはマッチしない
+  it('returns exists: false when discussion contains login but not swaName', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [
+            {
+              url: 'https://github.com/owner/repo/discussions/123',
+              body: 'Hi @testuser,\n\nYou now have access to other-swa.'
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({ exists: false })
+  })
+
+  // ページネーションで複数ページを正しく処理する
+  it('handles pagination correctly', async () => {
+    graphqlRequestMock
+      .mockResolvedValueOnce({
+        repository: {
+          discussions: {
+            nodes: [
+              {
+                url: 'https://github.com/owner/repo/discussions/1',
+                body: 'Other content'
+              }
+            ],
+            pageInfo: { hasNextPage: true, endCursor: 'cursor1' }
+          }
+        }
+      })
+      .mockResolvedValueOnce({
+        repository: {
+          discussions: {
+            nodes: [
+              {
+                url: 'https://github.com/owner/repo/discussions/2',
+                body: 'Hi @testuser, welcome to my-swa!'
+              }
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null }
+          }
+        }
+      })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({
+      exists: true,
+      url: 'https://github.com/owner/repo/discussions/2'
+    })
+    expect(graphqlRequestMock).toHaveBeenCalledTimes(2)
+    expect(graphqlRequestMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('discussions'),
+      { owner: 'owner', repo: 'repo', categoryId: 'cat-id', cursor: 'cursor1' }
+    )
+  })
+
+  // login照合は大文字小文字を区別しない
+  it('matches login case-insensitively', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [
+            {
+              url: 'https://github.com/owner/repo/discussions/123',
+              body: 'Hi @TestUser,\n\nYou now have access to my-swa.'
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({
+      exists: true,
+      url: 'https://github.com/owner/repo/discussions/123'
+    })
+  })
+
+  // @loginの単語境界を正しく判定する（@testuser123はマッチしない）
+  it('matches login with word boundary', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [
+            {
+              url: 'https://github.com/owner/repo/discussions/123',
+              body: 'Hi @testuser123, welcome to my-swa!'
+            }
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    // @testuser123は@testuserとはマッチしない
+    expect(result).toEqual({ exists: false })
+  })
+
+  // 空のDiscussion一覧はexists: falseを返す
+  it('returns exists: false for empty discussion list', async () => {
+    graphqlRequestMock.mockResolvedValueOnce({
+      repository: {
+        discussions: {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null }
+        }
+      }
+    })
+
+    const { findExistingInviteDiscussion } = await loadGithub()
+    const result = await findExistingInviteDiscussion(
+      'token',
+      'owner',
+      'repo',
+      'cat-id',
+      'my-swa',
+      'testuser'
+    )
+
+    expect(result).toEqual({ exists: false })
+  })
+})

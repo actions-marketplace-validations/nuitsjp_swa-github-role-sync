@@ -55,13 +55,14 @@ GitHubリポジトリに関連するドキュメントをSWAで公開する場�
   - `read` → `github-read`
 - `minimum-permission`で同期対象の最小権限レベルを指定可能（デフォルト: `write`）
 - 差分検出による重複招待の抑制
+- Discussion重複作成防止: 同一カテゴリ内に`swa-name`と`@{login}`の両方を含むオープンなDiscussionが既に存在する場合、新規Discussion作成をスキップ
 - ユーザーごとの招待Discussionを自動作成
 - `GITHUB_STEP_SUMMARY`への同期結果サマリー出力
 
 ### swa-github-discussion-cleanup
 
 - 作成日時ベースの期限切れDiscussion自動削除
-- タイトルテンプレートによる削除対象のフィルタリング
+- カテゴリー一致のみの削除対象判定
 - 手動実行時の即時削除モード
 
 ## Prerequisites
@@ -367,7 +368,7 @@ Azure Cloud Adoption Frameworkの[リソース省略形ガイダンス](https://
 - **別リポジトリの権限で同期する**
   `target-repo`に`owner/repo`を指定し、`github-token`に対象リポジトリへアクセスできるPATを渡します。
 - **テンプレートを変更する**
-  テンプレートは`{login}` `{role}` `{inviteUrl}` `{swaName}` `{repo}` `{date}`などのプレースホルダーを利用可能。Discussion掃除側も同じテンプレートを設定してください。
+  テンプレートは`{login}`、`{role}`、`{inviteUrl}`、`{swaName}`、`{repo}`、`{date}`などのプレースホルダーを利用可能である。Discussion掃除側はタイトルテンプレートを参照しないため設定不要である。
 - **招待リンクの有効期限**
   `invitation-expiration-hours`（既定168時間）を変更すると、掃除ワークフローの`expiration-hours`も合わせる必要があります。
 - **カスタムドメインを使う**

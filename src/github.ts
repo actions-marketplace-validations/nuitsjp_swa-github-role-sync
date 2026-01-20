@@ -175,6 +175,102 @@ export async function getDiscussionCategoryId(
  * @param categoryIds 事前取得済みのリポジトリIDとカテゴリID。
  * @returns 作成されたDiscussionのURL。
  */
+/**
+ * 指定カテゴリ内のオープンなDiscussionを検索し、
+ * 本文にswaNameとloginが両方含まれるものが存在するか確認する。
+ * @param token GitHubトークン。
+ * @param owner リポジトリ所有者。
+ * @param repo リポジトリ名。
+ * @param categoryId DiscussionカテゴリID。
+ * @param swaName 検索対象のSWA名。
+ * @param login 検索対象のGitHubログイン名。
+ * @returns 既存Discussionが見つかった場合は { exists: true, url } を返す。
+ */
+export async function findExistingInviteDiscussion(
+  token: string,
+  owner: string,
+  repo: string,
+  categoryId: string,
+  swaName: string,
+  login: string
+): Promise<{ exists: boolean; url?: string }> {
+  const graphqlClient = graphql.defaults({
+    headers: { authorization: `token ${token}` }
+  })
+
+  type DiscussionNode = {
+    url: string
+    body: string
+  }
+
+  type DiscussionQueryResult = {
+    repository: {
+      discussions: {
+        nodes: DiscussionNode[]
+        pageInfo: {
+          hasNextPage: boolean
+          endCursor: string | null
+        }
+      }
+    }
+  }
+
+  const loginPattern = new RegExp(`@${login}\\b`, 'i')
+  let cursor: string | null = null
+
+  do {
+    const result: DiscussionQueryResult = await graphqlClient<DiscussionQueryResult>(
+      `
+        query ($owner: String!, $repo: String!, $categoryId: ID!, $cursor: String) {
+          repository(owner: $owner, name: $repo) {
+            discussions(
+              first: 100
+              categoryId: $categoryId
+              states: [OPEN]
+              orderBy: { field: CREATED_AT, direction: DESC }
+              after: $cursor
+            ) {
+              nodes {
+                url
+                body
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
+              }
+            }
+          }
+        }
+      `,
+      { owner, repo, categoryId, cursor }
+    )
+
+    for (const discussion of result.repository.discussions.nodes) {
+      const body = discussion.body
+      if (body.includes(swaName) && loginPattern.test(body)) {
+        return { exists: true, url: discussion.url }
+      }
+    }
+
+    cursor = result.repository.discussions.pageInfo.hasNextPage
+      ? result.repository.discussions.pageInfo.endCursor
+      : null
+  } while (cursor)
+
+  return { exists: false }
+}
+
+/**
+ * 取得済みカテゴリIDを使ってDiscussionを作成する。
+ * @param token GitHubトークン。
+ * @param owner リポジトリ所有者（ログ出力時の整合用）。
+ * @param repo リポジトリ名（ログ出力時の整合用）。
+ * @param categoryName Discussionカテゴリ名（ログ出力時の整合用）。
+ * @param title Discussionタイトル。
+ * @param body Discussion本文。
+ * @param categoryIds 事前取得済みのリポジトリIDとカテゴリID。
+ * @returns 作成されたDiscussionのURL。
+ */
 export async function createDiscussion(
   token: string,
   owner: string,
